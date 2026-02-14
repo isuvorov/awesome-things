@@ -1,0 +1,7 @@
+node_modules/
+cjs/
+lib/
+lib-*/
+.test-logs-*/
+.release/
+**/__*

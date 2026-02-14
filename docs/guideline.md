@@ -1,0 +1,148 @@
+# Project Guidelines
+
+> **This file contains project documentation for developers.** For AI assistant instructions see [CLAUDE.md](../CLAUDE.md).
+
+Guidelines for awesome-things — Things3 JS/TS API, MCP server, CLI, and HTTP API for macOS.
+
+**Important:**
+- Update this file after large project changes
+- Run `bun run fix` and `bun run test` after each code change
+
+## Stack
+
+| Tool            | Choice                | Notes                          |
+|-----------------|-----------------------|--------------------------------|
+| Runtime         | Bun                  | macOS only (AppleScript)       |
+| Language        | TypeScript 5.9+      | Strict mode                   |
+| Module System   | ESM (nodenext)       | `"type": "module"` in package.json |
+| Build           | tsdown               | Primary builder -> `lib/`      |
+| Linting         | Biome                | Code quality and formatting   |
+| Testing         | bun:test             | Built-in Bun test runner      |
+| Bundle Check    | size-limit           | Bundle size constraints       |
+| Release         | semantic-release     | Automated versioning and npm publish |
+| CI/CD           | GitHub Actions       | Test on PR, release on push to main |
+| Validation      | Zod                  | Input validation schemas      |
+| CLI             | yargs                | CLI framework                 |
+| MCP             | @modelcontextprotocol/sdk | AI assistant integration |
+
+## Project Structure
+
+**Rule:** Only 5 entry-point files in `src/` root: `index.ts`, `api.ts`, `mcp.ts`, `server.ts`, `cli.ts`. Everything else must be in subdirectories (`tools/`, etc.).
+
+```
+src/
+├── index.ts              # Aggregator — re-exports from api.ts (and potentially other modules)
+├── api.ts                # Public JS/TS API — re-exports all functions and types
+├── mcp.ts                # MCP server (stdio transport)
+├── server.ts             # HTTP REST API (Bun.serve)
+├── cli.ts                # CLI (yargs)
+└── tools/                # Implementation (all non-entry-point code lives in subdirectories)
+    ├── todo-ops.ts       # createTodo, listTodos, completeTodo, updateTodo, searchTodos
+    ├── project-ops.ts    # createProject, listProjects, getProjectTodos
+    ├── list-ops.ts       # listTags, listAreas
+    └── move-ops.ts       # moveTodo, moveTodoToProject, moveTodoToArea, moveProjectToArea, removeTodoFromProject, removeProjectFromArea
+tests/
+├── applescript.test.ts   # Unit tests for pure AppleScript utility functions
+└── types.test.ts         # Unit tests for Zod schemas
+docs/
+├── guideline.md          # Project guidelines (this file)
+└── logo.png              # Project logo
+.github/
+└── workflows/
+    ├── test.yml          # PR testing (macOS)
+    └── release.yml       # Auto-release on push to main
+```
+
+## Commands
+
+```bash
+# Build
+bun run build              # Build for production (tsdown -> lib/)
+bun run dev                # Watch mode (tsdown)
+
+# Run
+bun run start              # Start MCP server (stdio)
+bun run server             # Start HTTP API server (port 3001)
+bun run cli                # Run CLI
+
+# Testing
+bun run test               # Full: lint + types + unit tests + size-limit
+bun run test:unit          # Run only unit tests
+bun run test:types         # TypeScript type check (tsc --noEmit)
+bun run test:lint          # Run biome lint
+bun run test:size          # Check bundle size limits
+
+# Fixing
+bun run fix                # Auto fix lint & formatting (biome)
+
+# Release
+bun run release            # Build + test + semantic-release + npm publish
+```
+
+## Architecture
+
+### AppleScript Layer (`applescript.ts`)
+- `execute(script)` — runs `osascript` via `Bun.spawn`
+- `tellThings(command)` — wraps command in Things3 tell block
+- `quoteString(s)` — escapes string for AppleScript
+- `buildProperties(props)` — builds property list syntax
+- `capitalize(s)` — capitalizes first letter
+
+### Tools (`tools/*.ts`)
+16 operations grouped by domain. Each takes typed args and returns `Promise<string>`.
+
+### Interfaces
+- **JS/TS API** (`api.ts`) — `import { createTodo } from 'awesome-things'`
+- **MCP server** (`mcp.ts`) — stdio transport for Claude/Cursor
+- **CLI** (`cli.ts`) — `things add "Buy milk"`
+- **HTTP server** (`server.ts`) — `curl http://localhost:3001/todos`
+- **Aggregator** (`index.ts`) — re-exports everything from `api.ts`
+
+## Lint
+
+Biome configuration:
+- Recommended rules, `noExplicitAny: off`
+- `useImportExtensions: error` — enforces `.js` extensions in imports
+- 2-space indent, 100-char line width, single quotes, semicolons
+- Scope: `src/**/*.ts` and `tests/**/*.ts`
+
+## CI/CD
+
+GitHub Actions runs on **macOS** (required for AppleScript):
+
+### Test (on PR to main)
+1. Setup Bun + Node.js 22
+2. Install deps, build, test
+
+### Release (on push to main)
+1. Setup Bun + Node.js LTS
+2. Build, test, semantic-release (npm + GitHub release)
+
+## Size Limits
+
+| Entry              | Limit | Note                         |
+|--------------------|-------|------------------------------|
+| `lib/index.js`     | 4 KB  | Main API (zod ignored)       |
+| `lib/applescript.js` | 1 KB | AppleScript utilities       |
+
+## Package Exports
+
+```typescript
+// Main API (via index aggregator)
+import { createTodo, listTodos, completeTodo } from 'awesome-things';
+
+// Direct API import
+import { createTodo, listTodos, completeTodo } from 'awesome-things/api';
+
+// MCP server
+import 'awesome-things/mcp';
+
+// HTTP server
+import 'awesome-things/server';
+
+// CLI
+import 'awesome-things/cli';
+
+// Individual modules
+import { execute, tellThings } from 'awesome-things/applescript';
+```

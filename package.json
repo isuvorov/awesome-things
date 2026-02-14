@@ -1,0 +1,165 @@
+{
+  "type": "module",
+  "name": "awesome-things",
+  "version": "0.0.1",
+  "description": "Awesome swiss knife for Things3 – MCP server for AI, CLI, HTTP API, JS/TS API and Web",
+  "author": "Igor Suvorov <hi@isuvorov.com> (https://github.com/isuvorov)",
+  "private": false,
+  "bin": {
+    "thi": "lib/cli.js",
+    "things": "lib/cli.js",
+    "awesome-things": "lib/cli.js"
+  },
+  "scripts": {
+    "build:tsdown": "        tsdown",
+    "build:tsdown:release": "tsdown --out-dir lib",
+    "build": "               bun run build:tsdown:release",
+    "dev": "                 tsdown --watch",
+    "start": "               bun run src/mcp.ts",
+    "server": "              bun run src/server.ts",
+    "cli": "                 bun run src/cli.ts",
+    "test:unit": "           bun test",
+    "test:unit:watch": "     bun test --watch",
+    "test:types": "          tsc --noEmit",
+    "test:lint": "           biome lint",
+    "test:size": "           size-limit",
+    "test": "                bun run test:lint && bun run test:types && bun run test:unit && bun run test:size",
+    "test:watch": "          bun run test:unit:watch",
+    "fix:lint": "            biome check --write",
+    "fix": "                 bun run fix:lint",
+    "release": "             bash scripts/release.sh",
+    "release:patch": "       bash scripts/release.sh patch",
+    "release:minor": "       bash scripts/release.sh minor",
+    "release:major": "       bash scripts/release.sh major"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "@ngrok/ngrok": "^1.4.1",
+    "localtunnel": "^2.0.2",
+    "yargs": "^18.0.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.1",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "@size-limit/preset-small-lib": "^11.2.0",
+    "@types/bun": "latest",
+    "@types/localtunnel": "^2.0.4",
+    "@types/node": "^24.9.1",
+    "@types/yargs": "^17.0.35",
+    "semantic-release": "^25.0.1",
+    "size-limit": "^11.2.0",
+    "tsdown": "^0.15.11",
+    "typescript": "5.9.3"
+  },
+  "//": "///////////========================/////////========================/////////========================/////////",
+  "files": [
+    "lib",
+    "LICENSE",
+    "README.md"
+  ],
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./lib/index.js",
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./api": {
+      "import": "./lib/api.js",
+      "types": "./lib/api.d.ts",
+      "default": "./lib/api.js"
+    },
+    "./mcp": {
+      "import": "./lib/mcp.js",
+      "types": "./lib/mcp.d.ts",
+      "default": "./lib/mcp.js"
+    },
+    "./server": {
+      "import": "./lib/server.js",
+      "types": "./lib/server.d.ts",
+      "default": "./lib/server.js"
+    },
+    "./cli": {
+      "import": "./lib/cli.js",
+      "types": "./lib/cli.d.ts",
+      "default": "./lib/cli.js"
+    },
+    "./*": {
+      "import": "./lib/*.js",
+      "types": "./lib/*.d.ts",
+      "default": "./lib/*.js"
+    }
+  },
+  "size-limit": [
+    {
+      "path": "lib/index.js",
+      "limit": "4kb",
+      "ignore": [
+        "zod",
+        "node:*"
+      ]
+    },
+    {
+      "path": "lib/utils/applescript.js",
+      "limit": "1kb"
+    }
+  ],
+  "release": {
+    "branches": [
+      "main"
+    ],
+    "plugins": [
+      "@semantic-release/commit-analyzer",
+      "@semantic-release/release-notes-generator",
+      "@semantic-release/changelog",
+      [
+        "@semantic-release/npm",
+        {
+          "npmPublish": true,
+          "provenance": true
+        }
+      ],
+      "@semantic-release/github",
+      [
+        "@semantic-release/git",
+        {
+          "assets": [
+            "package.json",
+            "bun.lock",
+            "CHANGELOG.md"
+          ],
+          "message": "chore(release): v${nextRelease.version}\n\n${nextRelease.notes}\n\n[skip ci]"
+        }
+      ]
+    ]
+  },
+  "///": "//////////========================/////////========================/////////========================/////////",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/isuvorov/awesome-things.git"
+  },
+  "homepage": "https://github.com/isuvorov/awesome-things",
+  "bugs": "https://github.com/isuvorov/awesome-things/issues",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "keywords": [
+    "things3",
+    "things",
+    "mcp",
+    "cli",
+    "applescript",
+    "macos",
+    "todo",
+    "task-manager",
+    "model-context-protocol",
+    "typescript",
+    "esm"
+  ],
+  "////": "/////////========================/////////========================/////////========================/////////"
+}

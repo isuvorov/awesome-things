@@ -1,0 +1,61 @@
+/**
+ * AppleScript execution layer for Things3.
+ * Provides utilities for running osascript commands and building AppleScript syntax.
+ */
+
+const debug = process.env.DEBUG;
+
+function isDebug(): boolean {
+  return debug === '*' || debug === 'applescript' || debug === 'things';
+}
+
+export async function execute(script: string): Promise<string> {
+  if (isDebug()) {
+    console.error('\x1b[2m[applescript] ▶\x1b[0m', script.replace(/\n/g, ' \\n '));
+  }
+
+  const proc = Bun.spawn(['osascript', '-e', script], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+
+  const exitCode = await proc.exited;
+  const stdout = await new Response(proc.stdout).text();
+  const stderr = await new Response(proc.stderr).text();
+
+  if (exitCode !== 0) {
+    if (isDebug()) {
+      console.error('\x1b[31m[applescript] ✗\x1b[0m', stderr.trim());
+    }
+    throw new Error(`AppleScript error (code ${exitCode}): ${stderr.trim()}`);
+  }
+
+  if (isDebug()) {
+    const result = stdout.trim();
+    console.error('\x1b[32m[applescript] ✓\x1b[0m', result || '(empty)');
+  }
+
+  return stdout.trim();
+}
+
+export function tellThings(command: string): string {
+  return `tell application "Things3"\n${command}\nend tell`;
+}
+
+export function quoteString(s: string): string {
+  const escaped = s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  return `"${escaped}"`;
+}
+
+export function buildProperties(props: [string, string][]): string {
+  if (props.length === 0) {
+    return '{}';
+  }
+  const parts = props.map(([key, value]) => `${key}:${value}`);
+  return `{${parts.join(', ')}}`;
+}
+
+export function capitalize(s: string): string {
+  if (s.length === 0) return s;
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}

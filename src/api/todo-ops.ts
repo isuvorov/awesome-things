@@ -16,6 +16,8 @@ import {
   execute,
   quoteString,
   tellThings,
+  todoLabel,
+  todoRef,
 } from '../utils/applescript.js';
 
 export async function createTodo(args: CreateTodoArgs): Promise<ActionResult> {
@@ -46,11 +48,11 @@ export async function createTodo(args: CreateTodoArgs): Promise<ActionResult> {
     container = `in list ${quoteString(listName)}`;
   }
 
-  const command = `make new to do ${container} with properties ${propertiesStr}`;
+  const command = `set newTodo to make new to do ${container} with properties ${propertiesStr}\nreturn id of newTodo`;
   const lines = [...preamble, command];
   const script = tellThings(lines.join('\n'));
 
-  await execute(script);
+  const todoId = await execute(script);
 
   if (args.area && !args.project) {
     const areaCommand = `set area of to do named ${quoteString(args.name)} to area ${quoteString(args.area)}`;
@@ -68,7 +70,7 @@ export async function createTodo(args: CreateTodoArgs): Promise<ActionResult> {
     : args.area
       ? ` in area "${args.area}"`
       : '';
-  return { message: `Created todo: ${args.name}${suffix}` };
+  return { message: `Created todo: ${args.name}${suffix}`, id: todoId };
 }
 
 export async function listTodos(args: ListTodosArgs): Promise<ListTodosResult> {
@@ -78,6 +80,7 @@ export async function listTodos(args: ListTodosArgs): Promise<ListTodosResult> {
   const script = tellThings(`
 set todoCount to count of ${listRef}
 if todoCount is 0 then return ""
+set allIds to id of ${listRef}
 set allNames to name of ${listRef}
 set allStatuses to status of ${listRef}
 set allNotes to notes of ${listRef}
@@ -127,6 +130,7 @@ repeat with i from 1 to todoCount
 end repeat
 set tid to AppleScript's text item delimiters
 set AppleScript's text item delimiters to "\t"
+set idLine to allIds as string
 set nameLine to allNames as string
 set statusLine to allStatuses as string
 set noteLine to safeNotes as string
@@ -134,7 +138,7 @@ set dateLine to safeDates as string
 set tagLine to safeTags as string
 set projLine to safeProjects as string
 set AppleScript's text item delimiters to tid
-return nameLine & "\n" & statusLine & "\n" & noteLine & "\n" & dateLine & "\n" & tagLine & "\n" & projLine`);
+return idLine & "\n" & nameLine & "\n" & statusLine & "\n" & noteLine & "\n" & dateLine & "\n" & tagLine & "\n" & projLine`);
 
   const output = await execute(script);
   const todos = parseTodoColumns(output);
@@ -143,45 +147,48 @@ return nameLine & "\n" & statusLine & "\n" & noteLine & "\n" & dateLine & "\n" &
 }
 
 export async function completeTodo(args: CompleteTodoArgs): Promise<ActionResult> {
-  const command = `set status of to do named ${quoteString(args.name)} to completed`;
+  const ref = todoRef(args);
+  const command = `set status of ${ref} to completed\nreturn id of ${ref}`;
   const script = tellThings(command);
 
-  await execute(script);
-  return { message: `Completed todo: ${args.name}` };
+  const todoId = await execute(script);
+  return { message: `Completed todo: ${todoLabel(args)}`, id: todoId };
 }
 
 export async function updateTodo(args: UpdateTodoArgs): Promise<ActionResult> {
   const commands: string[] = [];
-  const todoRef = `to do named ${quoteString(args.name)}`;
+  const ref = todoRef(args);
+  const label = todoLabel(args);
 
   if (args.new_name) {
-    commands.push(`set name of ${todoRef} to ${quoteString(args.new_name)}`);
+    commands.push(`set name of ${ref} to ${quoteString(args.new_name)}`);
   }
 
   if (args.new_notes !== undefined) {
-    commands.push(`set notes of ${todoRef} to ${quoteString(args.new_notes)}`);
+    commands.push(`set notes of ${ref} to ${quoteString(args.new_notes)}`);
   }
 
   if (args.new_due_date !== undefined) {
     if (args.new_due_date === 'none') {
-      commands.push(`set due date of ${todoRef} to missing value`);
+      commands.push(`set due date of ${ref} to missing value`);
     } else {
       commands.push(buildDateVar(args.new_due_date, 'dueD'));
-      commands.push(`set due date of ${todoRef} to dueD`);
+      commands.push(`set due date of ${ref} to dueD`);
     }
   }
 
   if (args.new_tags) {
-    commands.push(`set tag names of ${todoRef} to ${quoteString(args.new_tags.join(', '))}`);
+    commands.push(`set tag names of ${ref} to ${quoteString(args.new_tags.join(', '))}`);
   }
 
   if (commands.length === 0) {
-    return { message: `No updates specified for todo: ${args.name}` };
+    return { message: `No updates specified for todo: ${label}` };
   }
 
+  commands.push(`return id of ${ref}`);
   const script = tellThings(commands.join('\n'));
-  await execute(script);
-  return { message: `Updated todo: ${args.name}` };
+  const todoId = await execute(script);
+  return { message: `Updated todo: ${label}`, id: todoId };
 }
 
 export async function searchTodos(args: SearchTodosArgs): Promise<SearchTodosResult> {
@@ -193,6 +200,7 @@ repeat with listName in {"Inbox", "Today", "Anytime", "Upcoming", "Someday"}
     set currentList to contents of listName
     set matches to every to do of list currentList whose name contains searchQuery
     repeat with t in matches
+      set todoId to id of t
       set todoName to name of t
       set todoStatus to status of t as string
       set nn to notes of t
@@ -232,7 +240,7 @@ repeat with listName in {"Inbox", "Today", "Anytime", "Upcoming", "Someday"}
       try
         set areaName to name of area of t
       end try
-      set end of allTodos to currentList & "\t" & todoName & "\t" & todoStatus & "\t" & nn & "\t" & ddStr & "\t" & tt & "\t" & projName & "\t" & areaName
+      set end of allTodos to todoId & "\t" & currentList & "\t" & todoName & "\t" & todoStatus & "\t" & nn & "\t" & ddStr & "\t" & tt & "\t" & projName & "\t" & areaName
     end repeat
   end try
 end repeat

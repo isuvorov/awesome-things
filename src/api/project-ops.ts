@@ -21,11 +21,11 @@ export async function createProject(args: CreateProjectArgs): Promise<ActionResu
   }
 
   const propertiesStr = buildProperties(props);
-  const command = `make new project with properties ${propertiesStr}`;
+  const command = `set newProj to make new project with properties ${propertiesStr}\nreturn id of newProj`;
   const script = tellThings(command);
 
-  await execute(script);
-  return { message: `Created project: ${args.name}` };
+  const projId = await execute(script);
+  return { message: `Created project: ${args.name}`, id: projId };
 }
 
 export async function listProjects(args: ListProjectsArgs): Promise<ListProjectsResult> {
@@ -37,6 +37,7 @@ export async function listProjects(args: ListProjectsArgs): Promise<ListProjects
     script = tellThings(`
 set projCount to count of ${areaRef}
 if projCount is 0 then return ""
+set allIds to id of ${areaRef}
 set allNames to name of ${areaRef}
 set allStatuses to status of ${areaRef}
 set allNotes to notes of ${areaRef}
@@ -52,13 +53,14 @@ repeat with i from 1 to projCount
   set AppleScript's text item delimiters to "%0A"
   set nn to np as string
   set AppleScript's text item delimiters to ", "
-  set end of output to (item i of allNames) & " | " & (item i of allStatuses as string) & " | " & nn
+  set end of output to (item i of allIds) & " | " & (item i of allNames) & " | " & (item i of allStatuses as string) & " | " & nn
 end repeat
 return output as string`);
   } else {
     script = tellThings(`
 set projCount to count of every project
 if projCount is 0 then return ""
+set allIds to id of every project
 set allNames to name of every project
 set allStatuses to status of every project
 set allNotes to notes of every project
@@ -78,7 +80,7 @@ repeat with i from 1 to projCount
   set AppleScript's text item delimiters to "%0A"
   set nn to np as string
   set AppleScript's text item delimiters to ", "
-  set end of output to (item i of allNames) & " | " & (item i of allStatuses as string) & " | " & nn & " | Area: " & projAreaName
+  set end of output to (item i of allIds) & " | " & (item i of allNames) & " | " & (item i of allStatuses as string) & " | " & nn & " | Area: " & projAreaName
 end repeat
 return output as string`);
   }
@@ -93,6 +95,7 @@ export async function getProjectTodos(args: GetProjectTodosArgs): Promise<GetPro
   const script = tellThings(`
 set todoCount to count of ${projRef}
 if todoCount is 0 then return ""
+set allIds to id of ${projRef}
 set allNames to name of ${projRef}
 set allStatuses to status of ${projRef}
 set allNotes to notes of ${projRef}
@@ -123,7 +126,7 @@ repeat with i from 1 to todoCount
   set AppleScript's text item delimiters to "%0A"
   set nn to np as string
   set AppleScript's text item delimiters to ", "
-  set end of output to (item i of allNames) & " | " & todoStatus & " | " & nn & " | " & todoDueDate & " | " & (item i of allTags)
+  set end of output to (item i of allIds) & " | " & (item i of allNames) & " | " & todoStatus & " | " & nn & " | " & todoDueDate & " | " & (item i of allTags)
 end repeat
 return output as string`);
 

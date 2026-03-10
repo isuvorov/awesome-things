@@ -18,9 +18,10 @@ describe('parseTodoLines', () => {
   });
 
   test('parses single todo', () => {
-    const result = parseTodoLines('Buy milk | open | grocery note | 2024-01-01 | shopping');
+    const result = parseTodoLines('id1 | Buy milk | open | grocery note | 2024-01-01 | shopping');
     expect(result).toEqual([
       {
+        id: 'id1',
         name: 'Buy milk',
         status: 'open',
         notes: 'grocery note',
@@ -33,17 +34,20 @@ describe('parseTodoLines', () => {
 
   test('parses multiple todos', () => {
     const result = parseTodoLines(
-      'Buy milk | open | note1 | 2024-01-01 | tag1, Task 2 | completed |  |  | tag2',
+      'id1 | Buy milk | open | note1 | 2024-01-01 | tag1, id2 | Task 2 | completed |  |  | tag2',
     );
     expect(result).toHaveLength(2);
+    expect(result[0].id).toBe('id1');
     expect(result[0].name).toBe('Buy milk');
+    expect(result[1].id).toBe('id2');
     expect(result[1].name).toBe('Task 2');
     expect(result[1].status).toBe('completed');
   });
 
   test('handles missing fields gracefully', () => {
-    const result = parseTodoLines('Buy milk | open');
+    const result = parseTodoLines('id1 | Buy milk | open');
     expect(result[0]).toEqual({
+      id: 'id1',
       name: 'Buy milk',
       status: 'open',
       notes: '',
@@ -65,15 +69,16 @@ describe('parseTodoColumns', () => {
 
   test('pads missing lines when trailing empty lines are trimmed', () => {
     expect(parseTodoColumns('a\nb\nc')).toEqual([
-      { name: 'a', status: 'b', notes: 'c', dueDate: '', tags: '', project: '' },
+      { id: 'a', name: 'b', status: 'c', notes: '', dueDate: '', tags: '', project: '' },
     ]);
   });
 
   test('parses single todo', () => {
-    const input = 'Buy milk\nopen\ngrocery note\n2024-01-01\nshopping\nMyProj';
+    const input = 'id1\nBuy milk\nopen\ngrocery note\n2024-01-01\nshopping\nMyProj';
     const result = parseTodoColumns(input);
     expect(result).toEqual([
       {
+        id: 'id1',
         name: 'Buy milk',
         status: 'open',
         notes: 'grocery note',
@@ -85,10 +90,12 @@ describe('parseTodoColumns', () => {
   });
 
   test('parses multiple todos', () => {
-    const input = 'Buy milk\tTask 2\nopen\tcompleted\nnote1\t\n2024-01-01\t\ntag1\ttag2\nProj1\t';
+    const input =
+      'id1\tid2\nBuy milk\tTask 2\nopen\tcompleted\nnote1\t\n2024-01-01\t\ntag1\ttag2\nProj1\t';
     const result = parseTodoColumns(input);
     expect(result).toHaveLength(2);
     expect(result[0]).toEqual({
+      id: 'id1',
       name: 'Buy milk',
       status: 'open',
       notes: 'note1',
@@ -97,6 +104,7 @@ describe('parseTodoColumns', () => {
       project: 'Proj1',
     });
     expect(result[1]).toEqual({
+      id: 'id2',
       name: 'Task 2',
       status: 'completed',
       notes: '',
@@ -107,10 +115,11 @@ describe('parseTodoColumns', () => {
   });
 
   test('handles missing fields gracefully', () => {
-    const input = 'Buy milk\tTask 2\nopen\tcompleted\n\t\n\t\n\t\n\t';
+    const input = 'id1\tid2\nBuy milk\tTask 2\nopen\tcompleted\n\t\n\t\n\t\n\t';
     const result = parseTodoColumns(input);
     expect(result).toHaveLength(2);
     expect(result[0]).toEqual({
+      id: 'id1',
       name: 'Buy milk',
       status: 'open',
       notes: '',
@@ -121,13 +130,13 @@ describe('parseTodoColumns', () => {
   });
 
   test('decodes URL-encoded notes', () => {
-    const input = 'Test\nopen\nHello%20World%2C%20test\n\n\n';
+    const input = 'id1\nTest\nopen\nHello%20World%2C%20test\n\n\n';
     const result = parseTodoColumns(input);
     expect(result[0].notes).toBe('Hello World, test');
   });
 
   test('decodes %0A-encoded newlines in notes', () => {
-    const input = 'Task\nopen\nLine1%0ALine2%0ALine3\n2024-01-01\ntag1\nMyProj';
+    const input = 'id1\nTask\nopen\nLine1%0ALine2%0ALine3\n2024-01-01\ntag1\nMyProj';
     const result = parseTodoColumns(input);
     expect(result[0].notes).toBe('Line1\nLine2\nLine3');
     expect(result[0].dueDate).toBe('2024-01-01');
@@ -142,18 +151,24 @@ describe('parseProjectLines', () => {
   });
 
   test('parses projects without area', () => {
-    const result = parseProjectLines('My Project | open | some notes', false);
-    expect(result).toEqual([{ name: 'My Project', status: 'open', notes: 'some notes' }]);
+    const result = parseProjectLines('pid1 | My Project | open | some notes', false);
+    expect(result).toEqual([
+      { id: 'pid1', name: 'My Project', status: 'open', notes: 'some notes' },
+    ]);
   });
 
   test('parses projects with area', () => {
-    const result = parseProjectLines('My Project | open | notes | Area: Work', true);
-    expect(result).toEqual([{ name: 'My Project', status: 'open', notes: 'notes', area: 'Work' }]);
+    const result = parseProjectLines('pid1 | My Project | open | notes | Area: Work', true);
+    expect(result).toEqual([
+      { id: 'pid1', name: 'My Project', status: 'open', notes: 'notes', area: 'Work' },
+    ]);
   });
 
   test('parses projects with empty area', () => {
-    const result = parseProjectLines('My Project | open | notes | Area: ', true);
-    expect(result).toEqual([{ name: 'My Project', status: 'open', notes: 'notes', area: '' }]);
+    const result = parseProjectLines('pid1 | My Project | open | notes | Area: ', true);
+    expect(result).toEqual([
+      { id: 'pid1', name: 'My Project', status: 'open', notes: 'notes', area: '' },
+    ]);
   });
 });
 
@@ -164,10 +179,11 @@ describe('parseSearchLines', () => {
 
   test('parses single search result', () => {
     const result = parseSearchLines(
-      'Today\tBuy milk\topen\tgrocery note\t2024-01-01\tshopping\tMyProj\tWork',
+      'id1\tToday\tBuy milk\topen\tgrocery note\t2024-01-01\tshopping\tMyProj\tWork',
     );
     expect(result).toEqual([
       {
+        id: 'id1',
         list: 'Today',
         name: 'Buy milk',
         status: 'open',
@@ -182,19 +198,22 @@ describe('parseSearchLines', () => {
 
   test('parses multiple search results', () => {
     const result = parseSearchLines(
-      'Today\tBuy milk\topen\tnote1\t\ttag1\t\nInbox\tBuy bread\topen\t\t\t\t',
+      'id1\tToday\tBuy milk\topen\tnote1\t\ttag1\t\nid2\tInbox\tBuy bread\topen\t\t\t\t',
     );
     expect(result).toHaveLength(2);
+    expect(result[0].id).toBe('id1');
     expect(result[0].list).toBe('Today');
     expect(result[0].notes).toBe('note1');
+    expect(result[1].id).toBe('id2');
     expect(result[1].list).toBe('Inbox');
     expect(result[1].notes).toBe('');
   });
 
   test('handles missing fields', () => {
-    const result = parseSearchLines('Inbox\tTest');
+    const result = parseSearchLines('id1\tInbox\tTest');
     expect(result).toEqual([
       {
+        id: 'id1',
         list: 'Inbox',
         name: 'Test',
         status: '',
@@ -208,13 +227,13 @@ describe('parseSearchLines', () => {
   });
 
   test('decodes URL-encoded notes', () => {
-    const result = parseSearchLines('Inbox\tTest\topen\tHello%20World%2C%20test\t\t\t');
+    const result = parseSearchLines('id1\tInbox\tTest\topen\tHello%20World%2C%20test\t\t\t');
     expect(result[0].notes).toBe('Hello World, test');
   });
 
   test('deduplicates todos with same name across lists', () => {
     const result = parseSearchLines(
-      'Anytime\tTEST-AREA\topen\t\t\t\t\nUpcoming\tTEST-AREA\topen\t\t\t\t',
+      'id1\tAnytime\tTEST-AREA\topen\t\t\t\t\nid2\tUpcoming\tTEST-AREA\topen\t\t\t\t',
     );
     expect(result).toHaveLength(1);
     expect(result[0].list).toBe('Anytime');
@@ -238,9 +257,9 @@ describe('parseSimpleList', () => {
 
 describe('filterTodosByStatus', () => {
   const todos = [
-    { name: 'A', status: 'open', notes: '', dueDate: '', tags: '', project: '' },
-    { name: 'B', status: 'completed', notes: '', dueDate: '', tags: '', project: '' },
-    { name: 'C', status: 'open', notes: '', dueDate: '', tags: '', project: '' },
+    { id: 'id1', name: 'A', status: 'open', notes: '', dueDate: '', tags: '', project: '' },
+    { id: 'id2', name: 'B', status: 'completed', notes: '', dueDate: '', tags: '', project: '' },
+    { id: 'id3', name: 'C', status: 'open', notes: '', dueDate: '', tags: '', project: '' },
   ];
 
   test('returns all when status is undefined', () => {

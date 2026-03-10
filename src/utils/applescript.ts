@@ -71,6 +71,19 @@ export function buildDateVar(isoDate: string, varName = 'dueD'): string {
   ].join('\n');
 }
 
+export function todoRef(args: { id?: string; todo_name?: string; name?: string }): string {
+  const id = args.id;
+  const name = 'todo_name' in args ? args.todo_name : args.name;
+  if (id) return `to do id ${quoteString(id)}`;
+  if (name) return `to do named ${quoteString(name)}`;
+  throw new Error('Either id or name must be provided');
+}
+
+export function todoLabel(args: { id?: string; todo_name?: string; name?: string }): string {
+  const name = 'todo_name' in args ? args.todo_name : args.name;
+  return name ? `"${name}"` : `id:${args.id}`;
+}
+
 export function capitalize(s: string): string {
   if (s.length === 0) return s;
   return s.charAt(0).toUpperCase() + s.slice(1);

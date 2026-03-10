@@ -18,7 +18,7 @@ import { type FormatStyle, type Formatters, getFormatters } from './tools/format
 
 const LIST_CHOICES = ['inbox', 'today', 'anytime', 'upcoming', 'someday', 'logbook'] as const;
 const TARGET_LIST_CHOICES = ['inbox', 'today', 'anytime', 'someday'] as const;
-const MOVE_DEST_CHOICES = ['inbox', 'today', 'anytime', 'upcoming', 'someday'] as const;
+const MOVE_DEST_CHOICES = ['inbox', 'today', 'evening', 'anytime', 'upcoming', 'someday'] as const;
 const STATUS_CHOICES = ['open', 'completed', 'all'] as const;
 
 let useJson = false;
@@ -227,22 +227,25 @@ yargs(hideBin(process.argv))
   )
 
   .command(
-    'done <name>',
+    'done [name]',
     'Mark a todo as completed',
-    (y) => y.positional('name', { type: 'string', demandOption: true, describe: 'Todo name' }),
-    (argv) => run(() => completeTodo({ name: argv.name! }), fmt.formatAction),
+    (y) =>
+      y
+        .positional('name', { type: 'string', describe: 'Todo name' })
+        .option('id', { type: 'string', describe: 'Todo ID' }),
+    (argv) => run(() => completeTodo({ name: argv.name, id: argv.id }), fmt.formatAction),
   )
 
   .command(
-    'update <name>',
+    'update [name]',
     'Update a todo',
     (y) =>
       y
         .positional('name', {
           type: 'string',
-          demandOption: true,
           describe: 'Current todo name',
         })
+        .option('id', { type: 'string', describe: 'Todo ID' })
         .option('new-name', { type: 'string', describe: 'New name' })
         .option('new-notes', { type: 'string', describe: 'New notes' })
         .option('new-due', {
@@ -254,7 +257,8 @@ yargs(hideBin(process.argv))
       run(
         () =>
           updateTodo({
-            name: argv.name!,
+            id: argv.id,
+            name: argv.name,
             new_name: argv.newName as string | undefined,
             new_notes: argv.newNotes as string | undefined,
             new_due_date: argv.newDue as string | undefined,
@@ -359,75 +363,78 @@ yargs(hideBin(process.argv))
     (y) =>
       y
         .command(
-          'todo <name> <destination>',
+          'todo [name] <destination>',
           'Move a todo to a list',
           (y) =>
             y
               .positional('name', {
                 type: 'string',
-                demandOption: true,
                 describe: 'Todo name',
               })
               .positional('destination', {
                 choices: MOVE_DEST_CHOICES,
                 demandOption: true,
                 describe: 'Destination list',
-              }),
+              })
+              .option('id', { type: 'string', describe: 'Todo ID' }),
           (argv) =>
             run(
               () =>
                 moveTodo({
-                  todo_name: argv.name!,
+                  id: argv.id,
+                  todo_name: argv.name,
                   destination: argv.destination!,
                 }),
               fmt.formatAction,
             ),
         )
         .command(
-          'todo-to-project <todo> <project>',
+          'todo-to-project [todo] <project>',
           'Move a todo to a project',
           (y) =>
             y
               .positional('todo', {
                 type: 'string',
-                demandOption: true,
                 describe: 'Todo name',
               })
               .positional('project', {
                 type: 'string',
                 demandOption: true,
                 describe: 'Project name',
-              }),
+              })
+              .option('id', { type: 'string', describe: 'Todo ID' }),
           (argv) =>
             run(
               () =>
                 moveTodoToProject({
-                  todo_name: argv.todo!,
+                  id: argv.id,
+                  todo_name: argv.todo,
                   project_name: argv.project!,
                 }),
               fmt.formatAction,
             ),
         )
         .command(
-          'todo-to-area <todo> <area>',
+          'todo-to-area [todo] <area>',
           'Move a todo to an area',
           (y) =>
             y
               .positional('todo', {
                 type: 'string',
-                demandOption: true,
                 describe: 'Todo name',
               })
               .positional('area', {
                 type: 'string',
                 demandOption: true,
                 describe: 'Area name',
-              }),
+              })
+              .option('id', { type: 'string', describe: 'Todo ID' }),
           (argv) =>
             run(
               () =>
                 moveTodoToArea({
-                  todo_name: argv.todo!,
+                  id: argv.id,
+                  todo_name: argv.todo,
                   area_name: argv.area!,
                 }),
               fmt.formatAction,
@@ -470,15 +477,20 @@ yargs(hideBin(process.argv))
     (y) =>
       y
         .command(
-          'todo-from-project <name>',
+          'todo-from-project [name]',
           'Remove a todo from its project',
           (y) =>
-            y.positional('name', {
-              type: 'string',
-              demandOption: true,
-              describe: 'Todo name',
-            }),
-          (argv) => run(() => removeTodoFromProject({ todo_name: argv.name! }), fmt.formatAction),
+            y
+              .positional('name', {
+                type: 'string',
+                describe: 'Todo name',
+              })
+              .option('id', { type: 'string', describe: 'Todo ID' }),
+          (argv) =>
+            run(
+              () => removeTodoFromProject({ id: argv.id, todo_name: argv.name }),
+              fmt.formatAction,
+            ),
         )
         .command(
           'project-from-area <name>',

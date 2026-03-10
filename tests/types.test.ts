@@ -232,8 +232,12 @@ describe('toolSchemas', () => {
     expect(toolSchemas.list_todos.required).toContain('list');
   });
 
-  test('move_todo requires both fields', () => {
-    expect(toolSchemas.move_todo.required).toContain('todo_name');
+  test('move_todo requires destination', () => {
     expect(toolSchemas.move_todo.required).toContain('destination');
+  });
+
+  test('move_todo has id property', () => {
+    expect(toolSchemas.move_todo.properties).toHaveProperty('id');
+    expect(toolSchemas.move_todo.properties.id.type).toBe('string');
   });
 });

@@ -240,6 +240,46 @@ export async function startServer(options: ServerOptions = {}) {
         response = json({ ok: false, error: err.message || String(err) }, 500);
       }
 
+      // For MCP tool calls, tap into the SSE stream to detect isError for logging
+      if (isMcpRoute && extra.toolName && response.status === 200 && response.body) {
+        const chunks: string[] = [];
+        const decoder = new TextDecoder();
+        const { readable, writable } = new TransformStream({
+          transform(chunk, controller) {
+            chunks.push(decoder.decode(chunk, { stream: true }));
+            controller.enqueue(chunk);
+          },
+          flush() {
+            try {
+              const text = chunks.join('');
+              const dataMatch = text.match(/^data: (.+)$/m);
+              if (dataMatch) {
+                const rpcBody = JSON.parse(dataMatch[1]);
+                const content = rpcBody?.result?.content;
+                if (Array.isArray(content) && rpcBody?.result?.isError) {
+                  const textItem = content.find((c: any) => c.type === 'text');
+                  if (textItem?.text) {
+                    extra.toolError = textItem.text;
+                  }
+                }
+              }
+            } catch {}
+            logRequest(
+              method,
+              pathname,
+              response.status,
+              Math.round(performance.now() - start),
+              extra,
+            );
+          },
+        });
+        response.body.pipeTo(writable);
+        return new Response(readable, {
+          status: response.status,
+          headers: response.headers,
+        });
+      }
+
       logRequest(method, pathname, response.status, Math.round(performance.now() - start), extra);
       return response;
     },

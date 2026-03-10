@@ -54,6 +54,7 @@ export interface LogExtra {
   search?: string;
   toolName?: string;
   toolArgs?: Record<string, unknown>;
+  toolError?: string;
 }
 
 function compactArgs(args: Record<string, unknown>): string {
@@ -93,7 +94,8 @@ function formatRequestLine(
   }
 
   const path = displayPath.length > maxPath ? `${displayPath.slice(0, maxPath - 1)}…` : displayPath;
-  return `${time} ${m} ${path.padEnd(maxPath)} ${s}  ${dur}`;
+  const statusStr = extra?.toolError ? red('ERR') : s;
+  return `${time} ${m} ${path.padEnd(maxPath)} ${statusStr}  ${dur}`;
 }
 
 class RequestBox {

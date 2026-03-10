@@ -3,6 +3,7 @@ import { z } from 'zod';
 // ── Result Types ────────────────────────────────────────────────
 
 export interface TodoItem {
+  id: string;
   name: string;
   status: string;
   notes: string;
@@ -12,6 +13,7 @@ export interface TodoItem {
 }
 
 export interface SearchResultItem {
+  id: string;
   list: string;
   name: string;
   status: string;
@@ -24,6 +26,7 @@ export interface SearchResultItem {
 
 export interface ActionResult {
   message: string;
+  id?: string;
 }
 
 export interface ListTodosResult {
@@ -37,6 +40,7 @@ export interface SearchTodosResult {
 }
 
 export interface ProjectItem {
+  id: string;
   name: string;
   status: string;
   notes: string;
@@ -88,13 +92,21 @@ export const ListTodosArgsSchema = z.object({
 });
 export type ListTodosArgs = z.infer<typeof ListTodosArgsSchema>;
 
-export const CompleteTodoArgsSchema = z.object({
-  name: z.string().describe('Name of the todo to complete'),
+const idOrName = (data: { id?: string; name?: string }) => data.id || data.name;
+const idOrTodoName = (data: { id?: string; todo_name?: string }) => data.id || data.todo_name;
+const idOrNameMsg = { message: 'Either id or name must be provided' };
+const idOrTodoNameMsg = { message: 'Either id or todo_name must be provided' };
+
+export const CompleteTodoArgsBaseSchema = z.object({
+  id: z.string().optional().describe('ID of the todo to complete'),
+  name: z.string().optional().describe('Name of the todo to complete'),
 });
+export const CompleteTodoArgsSchema = CompleteTodoArgsBaseSchema.refine(idOrName, idOrNameMsg);
 export type CompleteTodoArgs = z.infer<typeof CompleteTodoArgsSchema>;
 
-export const UpdateTodoArgsSchema = z.object({
-  name: z.string().describe('Current name of the todo to update'),
+export const UpdateTodoArgsBaseSchema = z.object({
+  id: z.string().optional().describe('ID of the todo to update'),
+  name: z.string().optional().describe('Current name of the todo to update'),
   new_name: z.string().optional().describe('New name for the todo'),
   new_notes: z.string().optional().describe('New notes for the todo'),
   new_due_date: z
@@ -103,6 +115,7 @@ export const UpdateTodoArgsSchema = z.object({
     .describe("New due date (YYYY-MM-DD format, or 'none' to clear)"),
   new_tags: z.array(z.string()).optional().describe('New list of tag names'),
 });
+export const UpdateTodoArgsSchema = UpdateTodoArgsBaseSchema.refine(idOrName, idOrNameMsg);
 export type UpdateTodoArgs = z.infer<typeof UpdateTodoArgsSchema>;
 
 export const SearchTodosArgsSchema = z.object({
@@ -143,24 +156,36 @@ export type ListAreasArgs = z.infer<typeof ListAreasArgsSchema>;
 
 // ── Move Types ──────────────────────────────────────────────────
 
-export const MoveTodoArgsSchema = z.object({
-  todo_name: z.string().describe('Name of the todo to move'),
+export const MoveTodoArgsBaseSchema = z.object({
+  id: z.string().optional().describe('ID of the todo to move'),
+  todo_name: z.string().optional().describe('Name of the todo to move'),
   destination: z
     .enum(['inbox', 'today', 'evening', 'anytime', 'upcoming', 'someday'])
     .describe('Destination list'),
 });
+export const MoveTodoArgsSchema = MoveTodoArgsBaseSchema.refine(idOrTodoName, idOrTodoNameMsg);
 export type MoveTodoArgs = z.infer<typeof MoveTodoArgsSchema>;
 
-export const MoveTodoToProjectArgsSchema = z.object({
-  todo_name: z.string().describe('Name of the todo to move'),
+export const MoveTodoToProjectArgsBaseSchema = z.object({
+  id: z.string().optional().describe('ID of the todo to move'),
+  todo_name: z.string().optional().describe('Name of the todo to move'),
   project_name: z.string().describe('Name of the target project'),
 });
+export const MoveTodoToProjectArgsSchema = MoveTodoToProjectArgsBaseSchema.refine(
+  idOrTodoName,
+  idOrTodoNameMsg,
+);
 export type MoveTodoToProjectArgs = z.infer<typeof MoveTodoToProjectArgsSchema>;
 
-export const MoveTodoToAreaArgsSchema = z.object({
-  todo_name: z.string().describe('Name of the todo to move'),
+export const MoveTodoToAreaArgsBaseSchema = z.object({
+  id: z.string().optional().describe('ID of the todo to move'),
+  todo_name: z.string().optional().describe('Name of the todo to move'),
   area_name: z.string().describe('Name of the target area'),
 });
+export const MoveTodoToAreaArgsSchema = MoveTodoToAreaArgsBaseSchema.refine(
+  idOrTodoName,
+  idOrTodoNameMsg,
+);
 export type MoveTodoToAreaArgs = z.infer<typeof MoveTodoToAreaArgsSchema>;
 
 export const MoveProjectToAreaArgsSchema = z.object({
@@ -169,9 +194,14 @@ export const MoveProjectToAreaArgsSchema = z.object({
 });
 export type MoveProjectToAreaArgs = z.infer<typeof MoveProjectToAreaArgsSchema>;
 
-export const RemoveTodoFromProjectArgsSchema = z.object({
-  todo_name: z.string().describe('Name of the todo to remove from its project'),
+export const RemoveTodoFromProjectArgsBaseSchema = z.object({
+  id: z.string().optional().describe('ID of the todo to remove from its project'),
+  todo_name: z.string().optional().describe('Name of the todo to remove from its project'),
 });
+export const RemoveTodoFromProjectArgsSchema = RemoveTodoFromProjectArgsBaseSchema.refine(
+  idOrTodoName,
+  idOrTodoNameMsg,
+);
 export type RemoveTodoFromProjectArgs = z.infer<typeof RemoveTodoFromProjectArgsSchema>;
 
 export const RemoveProjectFromAreaArgsSchema = z.object({
@@ -228,13 +258,15 @@ export const toolSchemas = {
   complete_todo: {
     type: 'object' as const,
     properties: {
+      id: { type: 'string', description: 'ID of the todo to complete' },
       name: { type: 'string', description: 'Name of the todo to complete' },
     },
-    required: ['name'],
+    required: [] as string[],
   },
   update_todo: {
     type: 'object' as const,
     properties: {
+      id: { type: 'string', description: 'ID of the todo to update' },
       name: { type: 'string', description: 'Current name of the todo to update' },
       new_name: { type: 'string', description: 'New name for the todo' },
       new_notes: { type: 'string', description: 'New notes for the todo' },
@@ -248,7 +280,7 @@ export const toolSchemas = {
         description: 'New list of tag names',
       },
     },
-    required: ['name'],
+    required: [] as string[],
   },
   search_todos: {
     type: 'object' as const,
@@ -298,6 +330,7 @@ export const toolSchemas = {
   move_todo: {
     type: 'object' as const,
     properties: {
+      id: { type: 'string', description: 'ID of the todo to move' },
       todo_name: { type: 'string', description: 'Name of the todo to move' },
       destination: {
         type: 'string',
@@ -305,23 +338,25 @@ export const toolSchemas = {
         description: 'Destination list',
       },
     },
-    required: ['todo_name', 'destination'],
+    required: ['destination'],
   },
   move_todo_to_project: {
     type: 'object' as const,
     properties: {
+      id: { type: 'string', description: 'ID of the todo to move' },
       todo_name: { type: 'string', description: 'Name of the todo to move' },
       project_name: { type: 'string', description: 'Name of the target project' },
     },
-    required: ['todo_name', 'project_name'],
+    required: ['project_name'],
   },
   move_todo_to_area: {
     type: 'object' as const,
     properties: {
+      id: { type: 'string', description: 'ID of the todo to move' },
       todo_name: { type: 'string', description: 'Name of the todo to move' },
       area_name: { type: 'string', description: 'Name of the target area' },
     },
-    required: ['todo_name', 'area_name'],
+    required: ['area_name'],
   },
   move_project_to_area: {
     type: 'object' as const,
@@ -334,12 +369,13 @@ export const toolSchemas = {
   remove_todo_from_project: {
     type: 'object' as const,
     properties: {
+      id: { type: 'string', description: 'ID of the todo to remove from its project' },
       todo_name: {
         type: 'string',
         description: 'Name of the todo to remove from its project',
       },
     },
-    required: ['todo_name'],
+    required: [] as string[],
   },
   remove_project_from_area: {
     type: 'object' as const,

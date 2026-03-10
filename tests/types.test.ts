@@ -177,6 +177,22 @@ describe('MoveTodoArgsSchema', () => {
     expect(result.destination).toBe('today');
   });
 
+  test('accepts evening destination', () => {
+    const result = MoveTodoArgsSchema.parse({
+      todo_name: 'Buy milk',
+      destination: 'evening',
+    });
+    expect(result.destination).toBe('evening');
+  });
+
+  test('accepts upcoming destination', () => {
+    const result = MoveTodoArgsSchema.parse({
+      todo_name: 'Buy milk',
+      destination: 'upcoming',
+    });
+    expect(result.destination).toBe('upcoming');
+  });
+
   test('rejects invalid destination', () => {
     expect(() => MoveTodoArgsSchema.parse({ todo_name: 'Test', destination: 'logbook' })).toThrow();
   });

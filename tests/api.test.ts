@@ -22,6 +22,16 @@ mock.module('../src/utils/applescript.js', () => ({
     const parts = props.map(([key, value]: [string, string]) => `${key}:${value}`);
     return `{${parts.join(', ')}}`;
   },
+  buildDateVar: (isoDate: string, varName = 'dueD') => {
+    const [year, month, day] = isoDate.split('-').map(Number);
+    return [
+      `set ${varName} to current date`,
+      `set year of ${varName} to ${year}`,
+      `set month of ${varName} to ${month}`,
+      `set day of ${varName} to ${day}`,
+      `set time of ${varName} to 0`,
+    ].join('\n');
+  },
   capitalize: (s: string) => (s.length === 0 ? s : s.charAt(0).toUpperCase() + s.slice(1)),
 }));
 
@@ -84,7 +94,10 @@ describe('createTodo', () => {
   test('creates todo with due date', async () => {
     resetExecute();
     await createTodo({ name: 'Task', due_date: '2026-03-01' });
-    expect(executeCalls[0]).toContain('due date:date "2026-03-01"');
+    expect(executeCalls[0]).toContain('set year of dueD to 2026');
+    expect(executeCalls[0]).toContain('set month of dueD to 3');
+    expect(executeCalls[0]).toContain('set day of dueD to 1');
+    expect(executeCalls[0]).toContain('due date:dueD');
   });
 
   test('creates todo with tags', async () => {
@@ -97,8 +110,8 @@ describe('createTodo', () => {
     resetExecute();
     const result = await createTodo({ name: 'Task', area: 'Home' });
     expect(result.message).toBe('Created todo: Task in area "Home"');
-    expect(executeCalls[0]).toContain('area:area "Home"');
     expect(executeCalls[0]).toContain('in list "Inbox"');
+    expect(executeCalls[1]).toContain('set area of to do named "Task" to area "Home"');
   });
 
   test('ignores area when project is specified', async () => {
@@ -107,6 +120,7 @@ describe('createTodo', () => {
     expect(result.message).toBe('Created todo: Task in project "Proj"');
     expect(executeCalls[0]).not.toContain('area');
     expect(executeCalls[0]).toContain('at beginning of project "Proj"');
+    expect(executeCalls.length).toBe(1);
   });
 
   test('creates todo in project and moves to list when both specified', async () => {
@@ -137,7 +151,7 @@ describe('createTodo', () => {
     const script = executeCalls[0];
     expect(script).toContain('name:"Full task"');
     expect(script).toContain('notes:"Details"');
-    expect(script).toContain('due date:date "2026-04-01"');
+    expect(script).toContain('due date:dueD');
     expect(script).toContain('tag names:"a, b"');
     expect(script).toContain('at beginning of project "Proj"');
   });
@@ -152,7 +166,9 @@ describe('listTodos', () => {
   });
 
   test('parses column output', async () => {
-    resetExecute('Buy milk\tClean house\nopen\tcompleted\nnote1\tnote2\n2024-01-15\t\nshop\t');
+    resetExecute(
+      'Buy milk\tClean house\nopen\tcompleted\nnote1\tnote2\n2024-01-15\t\nshop\t\nProj1\t',
+    );
     const result = await listTodos({ list: 'inbox' });
     expect(result.list).toBe('Inbox');
     expect(result.todos).toHaveLength(2);
@@ -162,6 +178,7 @@ describe('listTodos', () => {
       notes: 'note1',
       dueDate: '2024-01-15',
       tags: 'shop',
+      project: 'Proj1',
     });
     expect(result.todos[1]).toEqual({
       name: 'Clean house',
@@ -169,6 +186,7 @@ describe('listTodos', () => {
       notes: 'note2',
       dueDate: '',
       tags: '',
+      project: '',
     });
   });
 
@@ -212,7 +230,10 @@ describe('updateTodo', () => {
   test('updates due date', async () => {
     resetExecute();
     await updateTodo({ name: 'Task', new_due_date: '2026-05-01' });
-    expect(executeCalls[0]).toContain('set due date of to do named "Task" to date "2026-05-01"');
+    expect(executeCalls[0]).toContain('set year of dueD to 2026');
+    expect(executeCalls[0]).toContain('set month of dueD to 5');
+    expect(executeCalls[0]).toContain('set day of dueD to 1');
+    expect(executeCalls[0]).toContain('set due date of to do named "Task" to dueD');
   });
 
   test('clears due date with none', async () => {
@@ -252,12 +273,32 @@ describe('searchTodos', () => {
   });
 
   test('parses search results', async () => {
-    resetExecute('[Today] Buy milk (open), [Inbox] Milk note (completed)');
+    resetExecute(
+      'Today\tBuy milk\topen\tgrocery note\t2024-01-01\tshopping\tProj1\tWork\nInbox\tMilk note\tcompleted\t\t\t\t\t',
+    );
     const result = await searchTodos({ query: 'milk' });
     expect(result.query).toBe('milk');
     expect(result.results).toHaveLength(2);
-    expect(result.results[0]).toEqual({ list: 'Today', name: 'Buy milk', status: 'open' });
-    expect(result.results[1]).toEqual({ list: 'Inbox', name: 'Milk note', status: 'completed' });
+    expect(result.results[0]).toEqual({
+      list: 'Today',
+      name: 'Buy milk',
+      status: 'open',
+      notes: 'grocery note',
+      dueDate: '2024-01-01',
+      tags: 'shopping',
+      project: 'Proj1',
+      area: 'Work',
+    });
+    expect(result.results[1]).toEqual({
+      list: 'Inbox',
+      name: 'Milk note',
+      status: 'completed',
+      notes: '',
+      dueDate: '',
+      tags: '',
+      project: '',
+      area: '',
+    });
   });
 
   test('script contains search query', async () => {
@@ -347,6 +388,7 @@ describe('getProjectTodos', () => {
       notes: 'note',
       dueDate: '2024-06-01',
       tags: 'tag1',
+      project: '',
     });
   });
 
@@ -414,6 +456,21 @@ describe('moveTodo', () => {
     const result = await moveTodo({ todo_name: 'Task', destination: 'today' });
     expect(result.message).toBe('Moved todo "Task" to Today');
     expect(executeCalls[0]).toContain('move to do named "Task" to list "Today"');
+  });
+
+  test('moves todo to evening', async () => {
+    resetExecute();
+    const result = await moveTodo({ todo_name: 'Task', destination: 'evening' });
+    expect(result.message).toBe('Moved todo "Task" to This Evening');
+    expect(executeCalls[0]).toContain('move to do named "Task" to list "Today"');
+    expect(executeCalls[0]).toContain('evening:true');
+  });
+
+  test('moves todo to upcoming via activation date', async () => {
+    resetExecute();
+    const result = await moveTodo({ todo_name: 'Task', destination: 'upcoming' });
+    expect(result.message).toContain('Upcoming');
+    expect(executeCalls[0]).toContain('set activation date of to do named "Task"');
   });
 });
 

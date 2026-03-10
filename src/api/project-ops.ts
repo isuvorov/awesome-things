@@ -42,7 +42,17 @@ set allStatuses to status of ${areaRef}
 set allNotes to notes of ${areaRef}
 set output to {}
 repeat with i from 1 to projCount
-  set end of output to (item i of allNames) & " | " & (item i of allStatuses as string) & " | " & (item i of allNotes)
+  set nn to item i of allNotes
+  set AppleScript's text item delimiters to return
+  set np to text items of nn
+  set AppleScript's text item delimiters to "%0A"
+  set nn to np as string
+  set AppleScript's text item delimiters to linefeed
+  set np to text items of nn
+  set AppleScript's text item delimiters to "%0A"
+  set nn to np as string
+  set AppleScript's text item delimiters to ", "
+  set end of output to (item i of allNames) & " | " & (item i of allStatuses as string) & " | " & nn
 end repeat
 return output as string`);
   } else {
@@ -58,7 +68,17 @@ repeat with i from 1 to projCount
   try
     set projAreaName to name of area of project (item i of allNames)
   end try
-  set end of output to (item i of allNames) & " | " & (item i of allStatuses as string) & " | " & (item i of allNotes) & " | Area: " & projAreaName
+  set nn to item i of allNotes
+  set AppleScript's text item delimiters to return
+  set np to text items of nn
+  set AppleScript's text item delimiters to "%0A"
+  set nn to np as string
+  set AppleScript's text item delimiters to linefeed
+  set np to text items of nn
+  set AppleScript's text item delimiters to "%0A"
+  set nn to np as string
+  set AppleScript's text item delimiters to ", "
+  set end of output to (item i of allNames) & " | " & (item i of allStatuses as string) & " | " & nn & " | Area: " & projAreaName
 end repeat
 return output as string`);
   }
@@ -84,9 +104,26 @@ repeat with i from 1 to todoCount
   set todoDueDate to ""
   try
     set dd to item i of allDueDates
-    if dd is not missing value then set todoDueDate to dd as string
+    if dd is not missing value then
+      set y to year of dd as string
+      set m to month of dd as integer
+      if m < 10 then set m to "0" & m
+      set d to day of dd
+      if d < 10 then set d to "0" & d
+      set todoDueDate to y & "-" & m & "-" & d
+    end if
   end try
-  set end of output to (item i of allNames) & " | " & todoStatus & " | " & (item i of allNotes) & " | " & todoDueDate & " | " & (item i of allTags)
+  set nn to item i of allNotes
+  set AppleScript's text item delimiters to return
+  set np to text items of nn
+  set AppleScript's text item delimiters to "%0A"
+  set nn to np as string
+  set AppleScript's text item delimiters to linefeed
+  set np to text items of nn
+  set AppleScript's text item delimiters to "%0A"
+  set nn to np as string
+  set AppleScript's text item delimiters to ", "
+  set end of output to (item i of allNames) & " | " & todoStatus & " | " & nn & " | " & todoDueDate & " | " & (item i of allTags)
 end repeat
 return output as string`);
 

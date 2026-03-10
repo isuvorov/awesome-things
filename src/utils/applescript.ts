@@ -55,6 +55,22 @@ export function buildProperties(props: [string, string][]): string {
   return `{${parts.join(', ')}}`;
 }
 
+/**
+ * Build AppleScript lines to create a date variable from an ISO date string (YYYY-MM-DD).
+ * Returns the variable name that holds the constructed date.
+ */
+export function buildDateVar(isoDate: string, varName = 'dueD'): string {
+  const [year, month, day] = isoDate.split('-').map(Number);
+  return [
+    `set ${varName} to current date`,
+    `set day of ${varName} to 1`,
+    `set year of ${varName} to ${year}`,
+    `set month of ${varName} to ${month}`,
+    `set day of ${varName} to ${day}`,
+    `set time of ${varName} to 0`,
+  ].join('\n');
+}
+
 export function capitalize(s: string): string {
   if (s.length === 0) return s;
   return s.charAt(0).toUpperCase() + s.slice(1);

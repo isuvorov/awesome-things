@@ -251,7 +251,7 @@ describe('POST /api/todos', () => {
       method: 'POST',
       headers: authHeaders(),
     });
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(400);
     const data = await res.json();
     expect(data.ok).toBe(false);
     expect(typeof data.error).toBe('string');
@@ -263,7 +263,7 @@ describe('POST /api/todos', () => {
       headers: { ...authHeaders(), 'Content-Type': 'application/json' },
       body: 'not json',
     });
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(400);
     const data = await res.json();
     expect(data.ok).toBe(false);
     expect(typeof data.error).toBe('string');

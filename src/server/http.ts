@@ -13,15 +13,27 @@ export function json(data: unknown, status = 200) {
   });
 }
 
+export class ClientError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ClientError';
+  }
+}
+
 export async function handle(fn: () => Promise<any>) {
   try {
     const result = await fn();
     return json({ ok: true, ...result });
   } catch (err: any) {
-    return json({ ok: false, error: err.message || String(err) }, 500);
+    const status = err instanceof ClientError ? 400 : 500;
+    return json({ ok: false, error: err.message || String(err) }, status);
   }
 }
 
 export async function body(req: Request) {
-  return req.json() as Promise<Record<string, any>>;
+  try {
+    return (await req.json()) as Record<string, any>;
+  } catch {
+    throw new ClientError('Invalid or missing JSON body');
+  }
 }

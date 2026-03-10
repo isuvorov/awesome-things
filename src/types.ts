@@ -8,12 +8,18 @@ export interface TodoItem {
   notes: string;
   dueDate: string;
   tags: string;
+  project: string;
 }
 
 export interface SearchResultItem {
   list: string;
   name: string;
   status: string;
+  notes: string;
+  dueDate: string;
+  tags: string;
+  project: string;
+  area: string;
 }
 
 export interface ActionResult {
@@ -140,7 +146,7 @@ export type ListAreasArgs = z.infer<typeof ListAreasArgsSchema>;
 export const MoveTodoArgsSchema = z.object({
   todo_name: z.string().describe('Name of the todo to move'),
   destination: z
-    .enum(['inbox', 'today', 'anytime', 'upcoming', 'someday'])
+    .enum(['inbox', 'today', 'evening', 'anytime', 'upcoming', 'someday'])
     .describe('Destination list'),
 });
 export type MoveTodoArgs = z.infer<typeof MoveTodoArgsSchema>;
@@ -295,7 +301,7 @@ export const toolSchemas = {
       todo_name: { type: 'string', description: 'Name of the todo to move' },
       destination: {
         type: 'string',
-        enum: ['inbox', 'today', 'anytime', 'upcoming', 'someday'],
+        enum: ['inbox', 'today', 'evening', 'anytime', 'upcoming', 'someday'],
         description: 'Destination list',
       },
     },

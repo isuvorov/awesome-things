@@ -10,6 +10,7 @@ import type {
   UpdateTodoArgs,
 } from '../types.js';
 import {
+  buildDateVar,
   buildProperties,
   capitalize,
   execute,
@@ -24,16 +25,15 @@ export async function createTodo(args: CreateTodoArgs): Promise<ActionResult> {
     props.push(['notes', quoteString(args.notes)]);
   }
 
+  const preamble: string[] = [];
+
   if (args.due_date) {
-    props.push(['due date', `date ${quoteString(args.due_date)}`]);
+    preamble.push(buildDateVar(args.due_date, 'dueD'));
+    props.push(['due date', 'dueD']);
   }
 
   if (args.tags && args.tags.length > 0) {
     props.push(['tag names', quoteString(args.tags.join(', '))]);
-  }
-
-  if (args.area && !args.project) {
-    props.push(['area', `area ${quoteString(args.area)}`]);
   }
 
   const propertiesStr = buildProperties(props);
@@ -47,9 +47,15 @@ export async function createTodo(args: CreateTodoArgs): Promise<ActionResult> {
   }
 
   const command = `make new to do ${container} with properties ${propertiesStr}`;
-  const script = tellThings(command);
+  const lines = [...preamble, command];
+  const script = tellThings(lines.join('\n'));
 
   await execute(script);
+
+  if (args.area && !args.project) {
+    const areaCommand = `set area of to do named ${quoteString(args.name)} to area ${quoteString(args.area)}`;
+    await execute(tellThings(areaCommand));
+  }
 
   if (args.project && args.list) {
     const listName = capitalize(args.list);
@@ -78,23 +84,57 @@ set allNotes to notes of ${listRef}
 set allDueDates to due date of ${listRef}
 set allTags to tag names of ${listRef}
 set safeDates to {}
+set safeNotes to {}
+set safeProjects to {}
 repeat with i from 1 to todoCount
   set dd to item i of allDueDates
   if dd is missing value then
     set end of safeDates to ""
   else
-    set end of safeDates to dd as string
+    set y to year of dd as string
+    set m to month of dd as integer
+    if m < 10 then set m to "0" & m
+    set d to day of dd
+    if d < 10 then set d to "0" & d
+    set end of safeDates to y & "-" & m & "-" & d
   end if
+  set nn to item i of allNotes
+  set AppleScript's text item delimiters to return
+  set np to text items of nn
+  set AppleScript's text item delimiters to "%0A"
+  set nn to np as string
+  set AppleScript's text item delimiters to linefeed
+  set np to text items of nn
+  set AppleScript's text item delimiters to "%0A"
+  set nn to np as string
+  set AppleScript's text item delimiters to tab
+  set np to text items of nn
+  set AppleScript's text item delimiters to " "
+  set end of safeNotes to np as string
+  set projName to ""
+  try
+    set projName to name of project of item i of ${listRef}
+  end try
+  set end of safeProjects to projName
+end repeat
+set safeTags to {}
+repeat with i from 1 to todoCount
+  set tt to item i of allTags
+  set AppleScript's text item delimiters to tab
+  set tp to text items of tt
+  set AppleScript's text item delimiters to " "
+  set end of safeTags to tp as string
 end repeat
 set tid to AppleScript's text item delimiters
 set AppleScript's text item delimiters to "\t"
 set nameLine to allNames as string
 set statusLine to allStatuses as string
-set noteLine to allNotes as string
+set noteLine to safeNotes as string
 set dateLine to safeDates as string
-set tagLine to allTags as string
+set tagLine to safeTags as string
+set projLine to safeProjects as string
 set AppleScript's text item delimiters to tid
-return nameLine & "\n" & statusLine & "\n" & noteLine & "\n" & dateLine & "\n" & tagLine`);
+return nameLine & "\n" & statusLine & "\n" & noteLine & "\n" & dateLine & "\n" & tagLine & "\n" & projLine`);
 
   const output = await execute(script);
   const todos = parseTodoColumns(output);
@@ -126,7 +166,8 @@ export async function updateTodo(args: UpdateTodoArgs): Promise<ActionResult> {
     if (args.new_due_date === 'none') {
       commands.push(`set due date of ${todoRef} to missing value`);
     } else {
-      commands.push(`set due date of ${todoRef} to date ${quoteString(args.new_due_date)}`);
+      commands.push(buildDateVar(args.new_due_date, 'dueD'));
+      commands.push(`set due date of ${todoRef} to dueD`);
     }
   }
 
@@ -149,22 +190,60 @@ set allTodos to {}
 set searchQuery to ${quoteString(args.query)}
 repeat with listName in {"Inbox", "Today", "Anytime", "Upcoming", "Someday"}
   try
-    set allNames to name of every to do of list listName
-    set allStatuses to status of every to do of list listName
-    set todoCount to count of allNames
-    repeat with i from 1 to todoCount
-      set todoName to item i of allNames
-      if todoName contains searchQuery then
-        set todoStatus to item i of allStatuses as string
-        set end of allTodos to "[" & listName & "] " & todoName & " (" & todoStatus & ")"
+    set currentList to contents of listName
+    set matches to every to do of list currentList whose name contains searchQuery
+    repeat with t in matches
+      set todoName to name of t
+      set todoStatus to status of t as string
+      set nn to notes of t
+      set AppleScript's text item delimiters to return
+      set np to text items of nn
+      set AppleScript's text item delimiters to "%0A"
+      set nn to np as string
+      set AppleScript's text item delimiters to linefeed
+      set np to text items of nn
+      set AppleScript's text item delimiters to "%0A"
+      set nn to np as string
+      set AppleScript's text item delimiters to tab
+      set np to text items of nn
+      set AppleScript's text item delimiters to " "
+      set nn to np as string
+      set dd to due date of t
+      if dd is missing value then
+        set ddStr to ""
+      else
+        set y to year of dd as string
+        set m to month of dd as integer
+        if m < 10 then set m to "0" & m
+        set d to day of dd
+        if d < 10 then set d to "0" & d
+        set ddStr to y & "-" & m & "-" & d
       end if
+      set tt to tag names of t
+      set AppleScript's text item delimiters to tab
+      set tp to text items of tt
+      set AppleScript's text item delimiters to " "
+      set tt to tp as string
+      set projName to ""
+      try
+        set projName to name of project of t
+      end try
+      set areaName to ""
+      try
+        set areaName to name of area of t
+      end try
+      set end of allTodos to currentList & "\t" & todoName & "\t" & todoStatus & "\t" & nn & "\t" & ddStr & "\t" & tt & "\t" & projName & "\t" & areaName
     end repeat
   end try
 end repeat
 if (count of allTodos) is 0 then
   return ""
 else
-  return allTodos as string
+  set tid to AppleScript's text item delimiters
+  set AppleScript's text item delimiters to linefeed
+  set outputStr to allTodos as string
+  set AppleScript's text item delimiters to tid
+  return outputStr
 end if`);
 
   const output = await execute(script);

@@ -14,15 +14,7 @@ import { createProject, getProjectTodos, listProjects } from './api/project-ops.
 import { completeTodo, createTodo, listTodos, searchTodos, updateTodo } from './api/todo-ops.js';
 import { appName, appVersion } from './config.js';
 import { bold, cyan, dim, green, yellow } from './server/logger.js';
-import {
-  formatAction,
-  formatAreas,
-  formatProjects,
-  formatProjectTodos,
-  formatSearch,
-  formatTags,
-  formatTodos,
-} from './tools/formatters.js';
+import { type FormatStyle, type Formatters, getFormatters } from './tools/formatters.js';
 
 const LIST_CHOICES = ['inbox', 'today', 'anytime', 'upcoming', 'someday', 'logbook'] as const;
 const TARGET_LIST_CHOICES = ['inbox', 'today', 'anytime', 'someday'] as const;
@@ -30,6 +22,7 @@ const MOVE_DEST_CHOICES = ['inbox', 'today', 'anytime', 'upcoming', 'someday'] a
 const STATUS_CHOICES = ['open', 'completed', 'all'] as const;
 
 let useJson = false;
+let fmt: Formatters = getFormatters('pretty');
 
 async function run(fn: () => Promise<any>, format: (r: any) => string) {
   try {
@@ -54,8 +47,16 @@ yargs(hideBin(process.argv))
     default: false,
     describe: 'Output as JSON',
   })
+  .option('format', {
+    alias: 'f',
+    choices: ['pretty', 'table', 'plain'] as const,
+    global: true,
+    default: 'pretty' as const,
+    describe: 'Output format',
+  })
   .middleware((argv) => {
     useJson = !!argv.json;
+    fmt = getFormatters(argv.format as FormatStyle);
   })
   .demandCommand(1, 'Please specify a command')
   .showHelpOnFail(false)
@@ -203,7 +204,7 @@ yargs(hideBin(process.argv))
             project: argv.project,
             area: argv.area,
           }),
-        formatAction,
+        fmt.formatAction,
       ),
   )
 
@@ -222,14 +223,14 @@ yargs(hideBin(process.argv))
           alias: 's',
           describe: 'Filter by status',
         }),
-    (argv) => run(() => listTodos({ list: argv.list, status: argv.status }), formatTodos),
+    (argv) => run(() => listTodos({ list: argv.list, status: argv.status }), fmt.formatTodos),
   )
 
   .command(
     'done <name>',
     'Mark a todo as completed',
     (y) => y.positional('name', { type: 'string', demandOption: true, describe: 'Todo name' }),
-    (argv) => run(() => completeTodo({ name: argv.name! }), formatAction),
+    (argv) => run(() => completeTodo({ name: argv.name! }), fmt.formatAction),
   )
 
   .command(
@@ -259,7 +260,7 @@ yargs(hideBin(process.argv))
             new_due_date: argv.newDue as string | undefined,
             new_tags: argv.newTags as string[] | undefined,
           }),
-        formatAction,
+        fmt.formatAction,
       ),
   )
 
@@ -267,7 +268,7 @@ yargs(hideBin(process.argv))
     'search <query>',
     'Search todos by name',
     (y) => y.positional('query', { type: 'string', demandOption: true, describe: 'Search query' }),
-    (argv) => run(() => searchTodos({ query: argv.query! }), formatSearch),
+    (argv) => run(() => searchTodos({ query: argv.query! }), fmt.formatSearch),
   )
 
   // ── Project commands ──────────────────────────────────────────
@@ -297,14 +298,14 @@ yargs(hideBin(process.argv))
                   notes: argv.notes,
                   area: argv.area,
                 }),
-              formatAction,
+              fmt.formatAction,
             ),
         )
         .command(
           'list',
           'List projects',
           (y) => y.option('area', { type: 'string', alias: 'a', describe: 'Filter by area' }),
-          (argv) => run(() => listProjects({ area: argv.area }), formatProjects),
+          (argv) => run(() => listProjects({ area: argv.area }), fmt.formatProjects),
         )
         .command(
           'todos <project>',
@@ -328,7 +329,7 @@ yargs(hideBin(process.argv))
                   project_name: argv.project!,
                   status: argv.status,
                 }),
-              formatProjectTodos,
+              fmt.formatProjectTodos,
             ),
         )
         .demandCommand(1),
@@ -341,13 +342,13 @@ yargs(hideBin(process.argv))
     'tags',
     'List all tags',
     () => {},
-    () => run(() => listTags(), formatTags),
+    () => run(() => listTags(), fmt.formatTags),
   )
   .command(
     'areas',
     'List all areas',
     () => {},
-    () => run(() => listAreas(), formatAreas),
+    () => run(() => listAreas(), fmt.formatAreas),
   )
 
   // ── Move commands ─────────────────────────────────────────────
@@ -379,7 +380,7 @@ yargs(hideBin(process.argv))
                   todo_name: argv.name!,
                   destination: argv.destination!,
                 }),
-              formatAction,
+              fmt.formatAction,
             ),
         )
         .command(
@@ -404,7 +405,7 @@ yargs(hideBin(process.argv))
                   todo_name: argv.todo!,
                   project_name: argv.project!,
                 }),
-              formatAction,
+              fmt.formatAction,
             ),
         )
         .command(
@@ -429,7 +430,7 @@ yargs(hideBin(process.argv))
                   todo_name: argv.todo!,
                   area_name: argv.area!,
                 }),
-              formatAction,
+              fmt.formatAction,
             ),
         )
         .command(
@@ -454,7 +455,7 @@ yargs(hideBin(process.argv))
                   project_name: argv.project!,
                   area_name: argv.area!,
                 }),
-              formatAction,
+              fmt.formatAction,
             ),
         )
         .demandCommand(1),
@@ -477,7 +478,7 @@ yargs(hideBin(process.argv))
               demandOption: true,
               describe: 'Todo name',
             }),
-          (argv) => run(() => removeTodoFromProject({ todo_name: argv.name! }), formatAction),
+          (argv) => run(() => removeTodoFromProject({ todo_name: argv.name! }), fmt.formatAction),
         )
         .command(
           'project-from-area <name>',
@@ -488,7 +489,8 @@ yargs(hideBin(process.argv))
               demandOption: true,
               describe: 'Project name',
             }),
-          (argv) => run(() => removeProjectFromArea({ project_name: argv.name! }), formatAction),
+          (argv) =>
+            run(() => removeProjectFromArea({ project_name: argv.name! }), fmt.formatAction),
         )
         .demandCommand(1),
     () => {},

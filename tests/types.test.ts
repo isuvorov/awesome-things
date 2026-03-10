@@ -32,6 +32,48 @@ describe('CreateTodoArgsSchema', () => {
     expect(result.list).toBe('today');
   });
 
+  test('accepts project parameter', () => {
+    const result = CreateTodoArgsSchema.parse({
+      name: 'Buy milk',
+      project: 'Groceries',
+    });
+    expect(result.name).toBe('Buy milk');
+    expect(result.project).toBe('Groceries');
+  });
+
+  test('accepts project with other optional fields', () => {
+    const result = CreateTodoArgsSchema.parse({
+      name: 'Buy milk',
+      notes: 'Whole milk',
+      project: 'Groceries',
+      tags: ['urgent'],
+    });
+    expect(result.project).toBe('Groceries');
+    expect(result.notes).toBe('Whole milk');
+    expect(result.tags).toEqual(['urgent']);
+  });
+
+  test('accepts area parameter', () => {
+    const result = CreateTodoArgsSchema.parse({
+      name: 'Buy milk',
+      area: 'Home',
+    });
+    expect(result.name).toBe('Buy milk');
+    expect(result.area).toBe('Home');
+  });
+
+  test('accepts area with other optional fields', () => {
+    const result = CreateTodoArgsSchema.parse({
+      name: 'Buy milk',
+      notes: 'Whole milk',
+      area: 'Home',
+      tags: ['urgent'],
+    });
+    expect(result.area).toBe('Home');
+    expect(result.notes).toBe('Whole milk');
+    expect(result.tags).toEqual(['urgent']);
+  });
+
   test('rejects missing name', () => {
     expect(() => CreateTodoArgsSchema.parse({})).toThrow();
   });
@@ -158,6 +200,16 @@ describe('toolSchemas', () => {
 
   test('create_todo requires name', () => {
     expect(toolSchemas.create_todo.required).toContain('name');
+  });
+
+  test('create_todo has project property', () => {
+    expect(toolSchemas.create_todo.properties).toHaveProperty('project');
+    expect(toolSchemas.create_todo.properties.project.type).toBe('string');
+  });
+
+  test('create_todo has area property', () => {
+    expect(toolSchemas.create_todo.properties).toHaveProperty('area');
+    expect(toolSchemas.create_todo.properties.area.type).toBe('string');
   });
 
   test('list_todos requires list', () => {

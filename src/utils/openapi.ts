@@ -218,7 +218,7 @@ export function generateOpenApiSpec() {
   return {
     openapi: '3.0.0',
     info: {
-      title: appName + ' API',
+      title: `${appName} API`,
       version: appVersion,
       description: `REST API for managing ${appName} todos, projects, tags, and areas on macOS.`,
     },

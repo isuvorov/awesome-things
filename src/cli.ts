@@ -13,7 +13,7 @@ import {
 import { createProject, getProjectTodos, listProjects } from './api/project-ops.js';
 import { completeTodo, createTodo, listTodos, searchTodos, updateTodo } from './api/todo-ops.js';
 import { appName, appVersion } from './config.js';
-import { bold, cyan, dim, gray, green, yellow } from './server/logger.js';
+import { bold, cyan, dim, green, yellow } from './server/logger.js';
 import {
   formatAction,
   formatAreas,
@@ -180,7 +180,17 @@ yargs(hideBin(process.argv))
         .option('notes', { type: 'string', alias: 'n', describe: 'Notes' })
         .option('due', { type: 'string', alias: 'd', describe: 'Due date (YYYY-MM-DD)' })
         .option('tags', { type: 'array', alias: 't', string: true, describe: 'Tags' })
-        .option('list', { choices: TARGET_LIST_CHOICES, alias: 'l', describe: 'Target list' }),
+        .option('list', { choices: TARGET_LIST_CHOICES, alias: 'l', describe: 'Target list' })
+        .option('project', {
+          type: 'string',
+          alias: 'p',
+          describe: 'Project to create the todo in',
+        })
+        .option('area', {
+          type: 'string',
+          alias: 'a',
+          describe: 'Area to place the todo in',
+        }),
     (argv) =>
       run(
         () =>
@@ -190,6 +200,8 @@ yargs(hideBin(process.argv))
             due_date: argv.due,
             tags: argv.tags as string[] | undefined,
             list: argv.list,
+            project: argv.project,
+            area: argv.area,
           }),
         formatAction,
       ),

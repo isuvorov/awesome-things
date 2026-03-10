@@ -43,7 +43,9 @@ export function createMcpServer(): McpServer {
       list: z
         .enum(['inbox', 'today', 'anytime', 'someday'])
         .optional()
-        .describe('Target list (defaults to inbox)'),
+        .describe('Target list (defaults to inbox). With project: also moves todo to this list'),
+      project: z.string().optional().describe('Project name to create the todo in'),
+      area: z.string().optional().describe('Area name to place the todo in'),
     },
     mcpHandler(createTodo),
   );

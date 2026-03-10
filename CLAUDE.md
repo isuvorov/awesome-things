@@ -5,9 +5,10 @@
 Things3 JS/TS API, MCP server, CLI, and HTTP API for macOS.
 
 **Important:**
-- Update this file and docs/guideline.md after large project changes
+- **ALWAYS** update this file and docs/guideline.md when changing scripts, structure, dependencies, or commands — do it in the same step, not after
 - Run `bun run fix` if all ok run `bun run test` after each code change
 - Before saying "done", always run full `bun run fix` and `bun run test` (partial runs are ok for debugging)
+- Always write tests for new functionality (schemas, API, HTTP endpoints)
 - Default to using Bun instead of Node.js
 
 ## Main Commands
@@ -17,6 +18,7 @@ bun run test        # Run lint + types + unit tests + size-limit
 bun run test:lint   # Run only lints (biome)
 bun run test:types  # Check TypeScript types (tsc --noEmit)
 bun run test:unit   # Run only unit tests
+bun run test:unit:coverage  # Run unit tests with coverage report
 bun run test:size   # Check bundle size limits
 bun run fix         # Fix lint errors
 bun run start       # Start MCP server
@@ -61,4 +63,5 @@ src/
 - Integration tests require macOS + Things3 running
 
 ## More Info
-Full guideline available at [docs/guideline.md](docs/guideline.md)
+- Full guideline available at [docs/guideline.md](docs/guideline.md)
+- Shared memory across agents and subscriptions: [MEMORY.md](MEMORY.md) — use this instead of internal auto-memory

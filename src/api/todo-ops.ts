@@ -32,14 +32,37 @@ export async function createTodo(args: CreateTodoArgs): Promise<ActionResult> {
     props.push(['tag names', quoteString(args.tags.join(', '))]);
   }
 
-  const propertiesStr = buildProperties(props);
-  const listName = args.list ? capitalize(args.list) : 'Inbox';
+  if (args.area && !args.project) {
+    props.push(['area', `area ${quoteString(args.area)}`]);
+  }
 
-  const command = `make new to do in list ${quoteString(listName)} with properties ${propertiesStr}`;
+  const propertiesStr = buildProperties(props);
+
+  let container: string;
+  if (args.project) {
+    container = `at beginning of project ${quoteString(args.project)}`;
+  } else {
+    const listName = args.list ? capitalize(args.list) : 'Inbox';
+    container = `in list ${quoteString(listName)}`;
+  }
+
+  const command = `make new to do ${container} with properties ${propertiesStr}`;
   const script = tellThings(command);
 
   await execute(script);
-  return { message: `Created todo: ${args.name}` };
+
+  if (args.project && args.list) {
+    const listName = capitalize(args.list);
+    const moveCommand = `move to do named ${quoteString(args.name)} to list ${quoteString(listName)}`;
+    await execute(tellThings(moveCommand));
+  }
+
+  const suffix = args.project
+    ? ` in project "${args.project}"`
+    : args.area
+      ? ` in area "${args.area}"`
+      : '';
+  return { message: `Created todo: ${args.name}${suffix}` };
 }
 
 export async function listTodos(args: ListTodosArgs): Promise<ListTodosResult> {

@@ -9,6 +9,7 @@
     "moduleResolution": "nodenext",
     "strict": true,
     "skipLibCheck": true,
+    "resolveJsonModule": true,
     "types": ["bun-types"]
   },
   "include": [

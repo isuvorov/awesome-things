@@ -41,6 +41,8 @@ src/
     ├── project-ops.ts    # createProject, listProjects, getProjectTodos
     ├── list-ops.ts       # listTags, listAreas
     └── move-ops.ts       # moveTodo, moveTodoToProject, moveTodoToArea, moveProjectToArea, removeTodoFromProject, removeProjectFromArea
+utils/
+    └── tunnel.ts         # Tunnel providers: localtunnel, ngrok, frp
 tests/
 ├── applescript.test.ts   # Unit tests for pure AppleScript utility functions
 └── types.test.ts         # Unit tests for Zod schemas
@@ -90,6 +92,14 @@ bun run release            # Build + test + semantic-release + npm publish
 
 ### Tools (`tools/*.ts`)
 16 operations grouped by domain. Each takes typed args and returns `Promise<string>`.
+
+### Tunneling (`utils/tunnel.ts`)
+Three providers for exposing the local HTTP server remotely:
+- **localtunnel** — default, no config, uses `localtunnel` npm package
+- **ngrok** — uses `@ngrok/ngrok`, requires `NGROK_AUTHTOKEN`
+- **frp** — spawns `frpc` binary, requires `FRP_SERVER_ADDR` env, self-hosted
+
+CLI flag: `--tunnel`, `--tunnel=ngrok`, `--tunnel=frp`. Also via env: `AWESOME_THINGS_TUNNEL`.
 
 ### Interfaces
 - **JS/TS API** (`api.ts`) — `import { createTodo } from 'awesome-things'`

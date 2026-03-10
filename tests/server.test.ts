@@ -4,7 +4,10 @@ import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test';
 let returnData = false;
 
 mock.module('../src/api/todo-ops.js', () => ({
-  createTodo: mock(async (args: { name: string }) => ({ message: `Created todo: ${args.name}` })),
+  createTodo: mock(async (args: { name: string; project?: string }) => {
+    const suffix = args.project ? ` in project "${args.project}"` : '';
+    return { message: `Created todo: ${args.name}${suffix}` };
+  }),
   listTodos: mock(async (args: { list: string }) => {
     const list = args.list.charAt(0).toUpperCase() + args.list.slice(1);
     if (!returnData) return { list, todos: [] };
@@ -228,6 +231,19 @@ describe('POST /api/todos', () => {
     const data = await res.json();
     expect(data.ok).toBe(true);
     expect(data.message).toContain('Created todo');
+  });
+
+  test('creates a todo in a project and returns message', async () => {
+    const res = await fetch(`${baseUrl}/api/todos`, {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Buy milk', project: 'Groceries' }),
+    });
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.ok).toBe(true);
+    expect(data.message).toContain('Created todo');
+    expect(data.message).toContain('Groceries');
   });
 
   test('returns JSON error for empty body', async () => {

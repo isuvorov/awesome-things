@@ -54,7 +54,18 @@ Add to your MCP client configuration:
 {
   "mcpServers": {
     "things3": {
-      "command": "npx -y awesome-things mcp"]
+      "command": "npx -y awesome-things mcp"
+    }
+  }
+}
+```
+
+or use with tunneling services for remote access (see [Tunneling](#tunneling) below):
+```json
+{
+  "mcpServers": {
+    "things3": {
+      "command": "https://my-awesome-things3-mcp.loca.lt/mcp/auth/uvhSdaAsd1qmtAnHa895bcjwTAnBxw"
     }
   }
 }
@@ -97,6 +108,75 @@ Add to your MCP client configuration:
 
 ---
 
+## Tunneling
+
+Built-in tunnel support lets you expose your local server for remote access — useful for connecting AI clients (ChatGPT, Claude) to Things3 on your Mac.
+
+Three providers are supported:
+
+### localtunnel (default)
+
+```bash
+npx awesome-things server --tunnel
+# or explicitly:
+npx awesome-things server --tunnel=localtunnel
+# with custom subdomain:
+npx awesome-things server --tunnel --domain myapp
+```
+
+No configuration required. Free, no signup.
+
+### ngrok
+
+```bash
+npx awesome-things server --tunnel=ngrok
+# with auth token:
+npx awesome-things server --tunnel=ngrok --ngrok-token=YOUR_TOKEN
+# or via env:
+NGROK_AUTHTOKEN=YOUR_TOKEN npx awesome-things server --tunnel=ngrok
+# with custom domain (paid plan):
+npx awesome-things server --tunnel=ngrok --domain myapp.ngrok-free.app
+```
+
+### frp (Fast Reverse Proxy)
+
+[frp](https://github.com/fatedier/frp) — self-hosted reverse proxy. Requires `frpc` binary installed and your own frp server.
+
+```bash
+# Minimal — server address is required
+FRP_SERVER_ADDR=frp.example.com npx awesome-things server --tunnel=frp
+
+# With subdomain
+FRP_SERVER_ADDR=frp.example.com npx awesome-things server --tunnel=frp --domain myapp
+
+# Full domain
+FRP_SERVER_ADDR=frp.example.com npx awesome-things server --tunnel=frp --domain myapp.example.com
+
+# With authentication
+FRP_SERVER_ADDR=frp.example.com FRP_TOKEN=secret npx awesome-things server --tunnel=frp
+```
+
+<details>
+<summary><strong>All FRP environment variables</strong></summary>
+
+All variables support two prefixes: `AWESOME_THINGS_FRP_*` and `FRP_*`.
+
+| Variable | Default | Description |
+|---|---|---|
+| `FRP_SERVER_ADDR` | — (required) | FRP server address |
+| `FRP_SERVER_PORT` | `7000` | FRP server port |
+| `FRP_TOKEN` | — | Authentication token |
+| `FRP_PROTOCOL` | `https` | Protocol (`http` or `https`) |
+| `FRP_SUBDOMAIN` | — | Subdomain on the FRP server |
+| `FRP_REMOTE_PORT` | — | Remote port mapping |
+| `FRP_PROXY_NAME` | `things` | Proxy name in frpc |
+
+</details>
+
+> You can also set the tunnel provider via env: `AWESOME_THINGS_TUNNEL=frp`
+
+---
+
 ## Usage as CLI
 
 
@@ -133,6 +213,7 @@ thi search "*"
 # Create a todo
 things add "Buy milk"
 things add "Submit report" --notes "Q1" --due 2026-03-01 --tags work urgent --list today
+things add "Fix leak" --area Home
 
 # List todos
 things list              # today (default)
@@ -250,6 +331,9 @@ await createTodo({
   list: 'today',
 });
 
+// Create a todo directly in an area
+await createTodo({ name: 'Fix leak', area: 'Home' });
+
 // Search across all lists
 const results = await searchTodos({ query: 'report' });
 
@@ -264,22 +348,22 @@ await moveTodoToProject({ todo_name: 'Submit report', project_name: 'Q1 Planning
 <details>
 <summary><strong>All 16 API functions</strong></summary>
 
-- `createTodo(args)` - Create a todo
-- `listTodos(args)` - List todos
-- `completeTodo(args)` - Complete a todo
-- `updateTodo(args)` - Update a todo
-- `searchTodos(args)` - Search todos
-- `createProject(args)` - Create a project
-- `listProjects(args)` - List projects
-- `getProjectTodos(args)` - Get project todos
+- `createTodo({ name, notes?, due_date?, tags?, list?, project?, area? })` - Create a todo
+- `listTodos({ list, status? })` - List todos
+- `completeTodo({ name })` - Complete a todo
+- `updateTodo({ name, new_name?, new_notes?, new_due_date?, new_tags? })` - Update a todo
+- `searchTodos({ query })` - Search todos
+- `createProject({ name, notes?, area? })` - Create a project
+- `listProjects({ area? })` - List projects
+- `getProjectTodos({ project_name, status? })` - Get project todos
 - `listTags()` - List all tags
 - `listAreas()` - List all areas
-- `moveTodo(args)` - Move todo to list
-- `moveTodoToProject(args)` - Move todo to project
-- `moveTodoToArea(args)` - Move todo to area
-- `moveProjectToArea(args)` - Move project to area
-- `removeTodoFromProject(args)` - Remove todo from project
-- `removeProjectFromArea(args)` - Remove project from area
+- `moveTodo({ todo_name, destination })` - Move todo to list
+- `moveTodoToProject({ todo_name, project_name })` - Move todo to project
+- `moveTodoToArea({ todo_name, area_name })` - Move todo to area
+- `moveProjectToArea({ project_name, area_name })` - Move project to area
+- `removeTodoFromProject({ todo_name })` - Remove todo from project
+- `removeProjectFromArea({ project_name })` - Remove project from area
 
 </details>
 
@@ -293,29 +377,6 @@ const result = await execute(
 );
 ```
 
-<details>
-<summary><strong>All 16 functions</strong></summary>
-
-| Function | Arguments | Returns |
-|---|---|---|
-| `createTodo(args)` | `{ name, notes?, due_date?, tags?, list? }` | `Promise<string>` |
-| `listTodos(args)` | `{ list, status? }` | `Promise<string>` |
-| `completeTodo(args)` | `{ name }` | `Promise<string>` |
-| `updateTodo(args)` | `{ name, new_name?, new_notes?, new_due_date?, new_tags? }` | `Promise<string>` |
-| `searchTodos(args)` | `{ query }` | `Promise<string>` |
-| `createProject(args)` | `{ name, notes?, area? }` | `Promise<string>` |
-| `listProjects(args)` | `{ area? }` | `Promise<string>` |
-| `getProjectTodos(args)` | `{ project_name, status? }` | `Promise<string>` |
-| `listTags()` | -- | `Promise<string>` |
-| `listAreas()` | -- | `Promise<string>` |
-| `moveTodo(args)` | `{ todo_name, destination }` | `Promise<string>` |
-| `moveTodoToProject(args)` | `{ todo_name, project_name }` | `Promise<string>` |
-| `moveTodoToArea(args)` | `{ todo_name, area_name }` | `Promise<string>` |
-| `moveProjectToArea(args)` | `{ project_name, area_name }` | `Promise<string>` |
-| `removeTodoFromProject(args)` | `{ todo_name }` | `Promise<string>` |
-| `removeProjectFromArea(args)` | `{ project_name }` | `Promise<string>`
-
-</details> |
 
 ---
 

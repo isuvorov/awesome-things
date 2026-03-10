@@ -65,7 +65,9 @@ export const CreateTodoArgsSchema = z.object({
   list: z
     .enum(['inbox', 'today', 'anytime', 'someday'])
     .optional()
-    .describe('Target list (defaults to inbox)'),
+    .describe('Target list (defaults to inbox). With project: also moves todo to this list'),
+  project: z.string().optional().describe('Project name to create the todo in'),
+  area: z.string().optional().describe('Area name to place the todo in'),
 });
 export type CreateTodoArgs = z.infer<typeof CreateTodoArgsSchema>;
 
@@ -188,7 +190,15 @@ export const toolSchemas = {
       list: {
         type: 'string',
         enum: ['inbox', 'today', 'anytime', 'someday'],
-        description: 'Target list (defaults to inbox)',
+        description: 'Target list (defaults to inbox). With project: also moves todo to this list',
+      },
+      project: {
+        type: 'string',
+        description: 'Project name to create the todo in',
+      },
+      area: {
+        type: 'string',
+        description: 'Area name to place the todo in',
       },
     },
     required: ['name'],

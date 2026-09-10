@@ -153,15 +153,15 @@
   "keywords": [
     "things3",
     "things",
+    "cultured-code",
     "mcp",
-    "cli",
+    "mcp-server",
+    "model-context-protocol",
     "applescript",
     "macos",
     "todo",
-    "task-manager",
-    "model-context-protocol",
-    "typescript",
-    "esm"
+    "gtd",
+    "cli"
   ],
   "////": "/////////========================/////////========================/////////========================/////////"
 }

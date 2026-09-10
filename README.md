@@ -1,13 +1,13 @@
 # 📋 awesome-things
 
+[![LSK.js](https://github.com/lskjs/presets/raw/main/docs/badge.svg)](https://github.com/lskjs)
 [![NPM version](https://badgen.net/npm/v/awesome-things)](https://www.npmjs.com/package/awesome-things)
 [![NPM downloads](https://badgen.net/npm/dt/awesome-things)](https://www.npmjs.com/package/awesome-things)
-[![Dependency count](https://badgen.net/bundlephobia/dependency-count/awesome-things)](https://bundlephobia.com/result?p=awesome-things)
-[![TypeScript types](https://badgen.net/npm/types/awesome-things)](https://www.npmjs.com/package/awesome-things)
-[![Package size](https://badgen.net/bundlephobia/minzip/awesome-things)](https://bundlephobia.com/result?p=awesome-things)
-[![Platform](https://img.shields.io/badge/platform-macOS-lightgrey.svg)](#limitations)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Ask me in Telegram](https://img.shields.io/badge/Ask%20me%20in-Telegram-0088CC.svg)](https://t.me/isuvorov)
+[![Have TypeScript types](https://badgen.net/npm/types/awesome-things)](https://www.npmjs.com/package/awesome-things)
+[![Package size](https://img.shields.io/npm/unpacked-size/awesome-things?label=size&color=blue)](https://www.npmjs.com/package/awesome-things)
+[![Platform](https://img.shields.io/badge/platform-macOS-lightgrey.svg?logo=apple&logoColor=white)](#limitations)
+[![License](https://badgen.net/github/license/isuvorov/awesome-things)](https://github.com/isuvorov/awesome-things/blob/main/LICENSE)
+[![Write us in Telegram](https://img.shields.io/badge/write%20us-0088CC?logo=telegram&logoColor=white)](https://t.me/isuvorov)
 
 <div align="center">
   <h3><p><strong>📋 Awesome swiss knife for Things3 — MCP server, CLI, HTTP API & JS/TS API for macOS 📋</strong></p></h3>

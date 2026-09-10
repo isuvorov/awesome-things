@@ -3,7 +3,34 @@
  * Provides utilities for running osascript commands and building AppleScript syntax.
  */
 
+import { execFile } from 'node:child_process';
+
 const debug = process.env.DEBUG;
+
+interface OsascriptResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+}
+
+/** Runs osascript and resolves even when it exits non-zero — the caller reports the error. */
+function spawnOsascript(script: string): Promise<OsascriptResult> {
+  return new Promise((resolve) => {
+    execFile(
+      'osascript',
+      ['-e', script],
+      { maxBuffer: 64 * 1024 * 1024 },
+      (err, stdout, stderr) => {
+        const code = err?.code;
+        resolve({
+          stdout: stdout ?? '',
+          stderr: stderr || (err && code === undefined ? err.message : ''),
+          exitCode: typeof code === 'number' ? code : err ? 1 : 0,
+        });
+      },
+    );
+  });
+}
 
 function isDebug(): boolean {
   return debug === '*' || debug === 'applescript' || debug === 'things';
@@ -14,14 +41,8 @@ export async function execute(script: string): Promise<string> {
     console.error('\x1b[2m[applescript] ▶\x1b[0m', script.replace(/\n/g, ' \\n '));
   }
 
-  const proc = Bun.spawn(['osascript', '-e', script], {
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
-
-  const exitCode = await proc.exited;
-  const stdout = await new Response(proc.stdout).text();
-  const stderr = await new Response(proc.stderr).text();
+  // node:child_process, not Bun.spawn — the published bin runs on plain Node.
+  const { stdout, stderr, exitCode } = await spawnOsascript(script);
 
   if (exitCode !== 0) {
     if (isDebug()) {

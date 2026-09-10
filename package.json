@@ -106,7 +106,7 @@
     },
     {
       "path": "lib/utils/applescript.js",
-      "limit": "1kb",
+      "limit": "1.5kb",
       "ignore": [
         "node:*"
       ]

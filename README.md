@@ -348,7 +348,7 @@ await moveTodoToProject({ todo_name: 'Submit report', project_name: 'Q1 Planning
 - `updateTodo({ name?, id?, new_name?, new_notes?, new_due_date?, new_tags? })` — update a todo
 - `searchTodos({ query })` — search todos by name
 - `createProject({ name, notes?, area? })` — create a project
-- `updateProject({ project_name, new_name?, new_notes? })` — update a project
+- `updateProject({ project_name, new_name?, new_notes?, new_due_date?, new_tags?, new_area? })` — update a project
 - `listProjects({ area? })` — list projects
 - `getProjectTodos({ project_name, status? })` — get project todos
 - `listTags()` — list all tags

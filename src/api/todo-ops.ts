@@ -20,6 +20,20 @@ import {
   todoRef,
 } from '../utils/applescript.js';
 
+/**
+ * Things3 refuses `set due date to missing value` with -1700 ("Can't make missing
+ * value into type date"), so fall back to deleting the property outright.
+ */
+function clearDueDate(ref: string): string {
+  return [
+    'try',
+    `  set due date of ${ref} to missing value`,
+    'on error',
+    `  delete due date of ${ref}`,
+    'end try',
+  ].join('\n');
+}
+
 export async function createTodo(args: CreateTodoArgs): Promise<ActionResult> {
   const props: [string, string][] = [['name', quoteString(args.name)]];
 
@@ -40,19 +54,20 @@ export async function createTodo(args: CreateTodoArgs): Promise<ActionResult> {
 
   const propertiesStr = buildProperties(props);
 
-  let container: string;
+  // `make new to do at beginning of project "X"` reports success but silently
+  // leaves the todo in the Inbox. Create it, then attach it with the same
+  // `set project of` that moveTodoToProject uses — that one actually works.
+  const listName = args.project ? 'Inbox' : args.list ? capitalize(args.list) : 'Inbox';
+  const lines = [
+    ...preamble,
+    `set newTodo to make new to do in list ${quoteString(listName)} with properties ${propertiesStr}`,
+  ];
   if (args.project) {
-    container = `at beginning of project ${quoteString(args.project)}`;
-  } else {
-    const listName = args.list ? capitalize(args.list) : 'Inbox';
-    container = `in list ${quoteString(listName)}`;
+    lines.push(`set project of newTodo to project ${quoteString(args.project)}`);
   }
+  lines.push('return id of newTodo');
 
-  const command = `set newTodo to make new to do ${container} with properties ${propertiesStr}\nreturn id of newTodo`;
-  const lines = [...preamble, command];
-  const script = tellThings(lines.join('\n'));
-
-  const todoId = await execute(script);
+  const todoId = await execute(tellThings(lines.join('\n')));
 
   if (args.area && !args.project) {
     const areaCommand = `set area of to do named ${quoteString(args.name)} to area ${quoteString(args.area)}`;
@@ -189,7 +204,7 @@ export async function updateTodo(args: UpdateTodoArgs): Promise<ActionResult> {
 
   if (args.new_due_date !== undefined) {
     if (args.new_due_date === 'none') {
-      commands.push(`set due date of ${ref} to missing value`);
+      commands.push(clearDueDate(ref));
     } else {
       commands.push(buildDateVar(args.new_due_date, 'dueD'));
       commands.push(`set due date of ${ref} to dueD`);

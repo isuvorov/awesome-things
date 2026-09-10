@@ -112,13 +112,14 @@ describe('createTodo', () => {
     expect(executeCalls[0]).toContain('in list "Today"');
   });
 
-  test('creates todo in project', async () => {
+  test('creates todo in project via set project, not the project container', async () => {
     resetExecute('ID2');
     const result = await createTodo({ name: 'Task', project: 'Groceries' });
     expect(result.message).toBe('Created todo: Task in project "Groceries"');
     expect(result.id).toBe('ID2');
-    expect(executeCalls[0]).toContain('at beginning of project "Groceries"');
-    expect(executeCalls[0]).not.toContain('in list');
+    // `make new to do at beginning of project` silently drops the todo in Inbox
+    expect(executeCalls[0]).not.toContain('at beginning of project');
+    expect(executeCalls[0]).toContain('set project of newTodo to project "Groceries"');
   });
 
   test('creates todo with notes', async () => {
@@ -155,8 +156,8 @@ describe('createTodo', () => {
     resetExecute('ID7');
     const result = await createTodo({ name: 'Task', project: 'Proj', area: 'Home' });
     expect(result.message).toBe('Created todo: Task in project "Proj"');
-    expect(executeCalls[0]).not.toContain('area');
-    expect(executeCalls[0]).toContain('at beginning of project "Proj"');
+    expect(executeCalls[0]).not.toContain('set area');
+    expect(executeCalls[0]).toContain('set project of newTodo to project "Proj"');
     expect(executeCalls.length).toBe(1);
   });
 
@@ -164,7 +165,7 @@ describe('createTodo', () => {
     resetExecuteMulti('ID8', '');
     await createTodo({ name: 'Task', project: 'Proj', list: 'today' });
     expect(executeCalls).toHaveLength(2);
-    expect(executeCalls[0]).toContain('at beginning of project "Proj"');
+    expect(executeCalls[0]).toContain('set project of newTodo to project "Proj"');
     expect(executeCalls[1]).toContain('schedule to do id "ID8" for (current date)');
     expect(executeCalls[1]).not.toContain('move');
   });
@@ -185,7 +186,7 @@ describe('createTodo', () => {
     resetExecute('ID9');
     await createTodo({ name: 'Task', project: 'Proj' });
     expect(executeCalls).toHaveLength(1);
-    expect(executeCalls[0]).toContain('at beginning of project "Proj"');
+    expect(executeCalls[0]).toContain('set project of newTodo to project "Proj"');
   });
 
   test('creates todo with all options', async () => {
@@ -204,7 +205,7 @@ describe('createTodo', () => {
     expect(script).toContain('notes:"Details"');
     expect(script).toContain('due date:dueD');
     expect(script).toContain('tag names:"a, b"');
-    expect(script).toContain('at beginning of project "Proj"');
+    expect(script).toContain('set project of newTodo to project "Proj"');
   });
 });
 
@@ -747,5 +748,24 @@ describe('removeProjectFromArea', () => {
     const result = await removeProjectFromArea({ project_name: 'Proj' });
     expect(result.message).toBe('Removed project "Proj" from its area');
     expect(executeCalls[0]).toContain('delete area of project "Proj"');
+  });
+});
+
+describe('clearing a due date', () => {
+  test('updateTodo falls back to delete when missing value is refused', async () => {
+    resetExecute('CLR1');
+    await updateTodo({ id: 'X', new_due_date: 'none' });
+    const script = executeCalls[0];
+    expect(script).toContain('set due date of to do id "X" to missing value');
+    expect(script).toContain('on error');
+    expect(script).toContain('delete due date of to do id "X"');
+  });
+
+  test('updateProject falls back to delete as well', async () => {
+    resetExecute('CLR2');
+    await updateProject({ project_name: 'Proj', new_due_date: 'none' });
+    const script = executeCalls[0];
+    expect(script).toContain('set due date of theProject to missing value');
+    expect(script).toContain('delete due date of theProject');
   });
 });

@@ -52,7 +52,16 @@ export async function updateProject(args: UpdateProjectArgs): Promise<ActionResu
 
   if (args.new_due_date !== undefined) {
     if (args.new_due_date === 'none') {
-      commands.push('set due date of theProject to missing value');
+      // Things3 rejects `missing value` for a date with -1700; delete the property.
+      commands.push(
+        [
+          'try',
+          '  set due date of theProject to missing value',
+          'on error',
+          '  delete due date of theProject',
+          'end try',
+        ].join('\n'),
+      );
     } else {
       commands.push(buildDateVar(args.new_due_date, 'dueD'));
       commands.push('set due date of theProject to dueD');

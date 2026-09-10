@@ -5,3 +5,6 @@ lib-*/
 .test-logs-*/
 .release/
 **/__*
+# Local scratch files — personal notes and real tokens, never commit
+/TODO*.md
+/test.sh

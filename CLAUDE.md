@@ -22,7 +22,7 @@ bun run test:unit:coverage  # Run unit tests with coverage report
 bun run test:size   # Check bundle size limits
 bun run fix         # Fix lint errors
 bun run start       # Start MCP server
-bun run server      # Start HTTP API server (port 3001)
+bun run server      # Start HTTP API server (port 32123)
 bun run cli         # Run CLI
 ```
 
@@ -35,17 +35,35 @@ src/
 ├── index.ts              # Aggregator — re-exports from api.ts
 ├── api.ts                # Public JS/TS API — re-exports all functions and types
 ├── mcp.ts                # MCP server (stdio transport)
-├── server.ts             # HTTP REST API (Bun.serve)
+├── server.ts             # HTTP REST API + MCP-over-HTTP (Bun.serve)
 ├── cli.ts                # CLI (yargs)
-└── tools/                # Implementation (non-entry-point code in subdirectories only)
-    ├── todo-ops.ts       # Todo operations (create, list, complete, update, search)
-    ├── project-ops.ts    # Project operations (create, list, get todos)
-    ├── list-ops.ts       # Tags and areas listing
-    └── move-ops.ts       # Move and remove operations
+├── config.ts             # appName, appVersion, appDescription, defaultPort
+├── types.ts              # Zod schemas + inferred types
+├── api/                  # Things3 operations (AppleScript)
+│   ├── todo-ops.ts       # Todo operations (create, list, complete, update, search)
+│   ├── project-ops.ts    # Project operations (create, list, get todos)
+│   ├── list-ops.ts       # Tags and areas listing
+│   └── move-ops.ts       # Move and remove operations
+├── server/               # HTTP server internals
+│   ├── errors.ts         # errorMessage / formatError / isClientAbort
+│   ├── guards.ts         # installProcessGuards — process never dies on stray errors
+│   ├── http.ts           # json / handle / body helpers + CORS headers
+│   ├── logger.ts         # Request box, colors, logError
+│   ├── mcp-http.ts       # MCP-over-HTTP: stateless transport per request
+│   └── port.ts           # Port probing
+├── tools/                # Output helpers (formatters, parsers, info)
+└── utils/                # applescript, auth, create-server, mcp-server, openapi, tunnel
 ```
 
+## Server Reliability Rules
+- **Never touch `err.message` directly** — anything can be thrown (`undefined` included). Use `errorMessage(err)` / `formatError(err)` from `src/server/errors.ts`
+- `installProcessGuards()` must be called from `startServer()` / `startMcpServer()`, **not** from an `import.meta.main` block — the CLI imports these modules, so `import.meta.main` is `false` there
+- `Bun.serve` always needs an `error()` handler, otherwise Bun prints `error: undefined` and kills the process
+- `idleTimeout: 0` — MCP streams and AppleScript calls outlive Bun's 10s default
+- `GET /mcp` answers `405` on purpose: in stateless mode a server-initiated SSE stream would hang forever
+
 ## Key Architecture
-- **16 tools** for managing Things3: todos, projects, tags, areas, move/remove
+- **17 tools** for managing Things3: todos, projects, tags, areas, move/remove
 - **AppleScript** — only way to programmatically control Things3 on macOS
 - **4 interfaces**: JS/TS API (`api.ts`), MCP server (`mcp.ts`), CLI (`cli.ts`), HTTP API (`server.ts`)
 - All operations identify todos/projects by **name** (not ID)

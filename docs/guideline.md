@@ -34,17 +34,42 @@ src/
 ├── index.ts              # Aggregator — re-exports from api.ts (and potentially other modules)
 ├── api.ts                # Public JS/TS API — re-exports all functions and types
 ├── mcp.ts                # MCP server (stdio transport)
-├── server.ts             # HTTP REST API (Bun.serve)
+├── server.ts             # HTTP REST API + MCP-over-HTTP (Bun.serve)
 ├── cli.ts                # CLI (yargs)
-└── tools/                # Implementation (all non-entry-point code lives in subdirectories)
-    ├── todo-ops.ts       # createTodo, listTodos, completeTodo, updateTodo, searchTodos
-    ├── project-ops.ts    # createProject, listProjects, getProjectTodos
-    ├── list-ops.ts       # listTags, listAreas
-    └── move-ops.ts       # moveTodo, moveTodoToProject, moveTodoToArea, moveProjectToArea, removeTodoFromProject, removeProjectFromArea
-utils/
+├── config.ts             # appName, appVersion, appDescription, defaultPort
+├── types.ts              # Zod schemas + inferred types
+├── api/                  # Things3 operations (AppleScript)
+│   ├── todo-ops.ts       # createTodo, listTodos, completeTodo, updateTodo, searchTodos
+│   ├── project-ops.ts    # createProject, listProjects, getProjectTodos, updateProject
+│   ├── list-ops.ts       # listTags, listAreas
+│   └── move-ops.ts       # moveTodo, moveTodoToProject, moveTodoToArea, moveProjectToArea, removeTodoFromProject, removeProjectFromArea
+├── server/               # HTTP server internals
+│   ├── errors.ts         # errorMessage, formatError, isClientAbort
+│   ├── guards.ts         # installProcessGuards — unhandledRejection / uncaughtException
+│   ├── http.ts           # json, handle, body, ClientError, CORS headers
+│   ├── logger.ts         # Request box, ANSI colors, logError
+│   ├── mcp-http.ts       # MCP-over-HTTP: stateless transport per request
+│   └── port.ts           # probePort, APP_ID, MAX_PORT_ATTEMPTS
+├── tools/                # Output helpers
+│   ├── formatters.ts     # CLI output formatting
+│   ├── info.ts           # `things info` — package, install source, environment
+│   └── parsers.ts        # AppleScript output parsing
+└── utils/
+    ├── applescript.ts    # AppleScript execution + escaping
+    ├── auth.ts           # Token generation, Bearer / path-token checks
+    ├── create-server.ts  # Bun.serve / node:http wrapper with error handling
+    ├── mcp-server.ts     # MCP tool registration (17 tools)
+    ├── openapi.ts        # OpenAPI spec, Swagger UI, home page
     └── tunnel.ts         # Tunnel providers: localtunnel, ngrok, frp
 tests/
+├── api.test.ts           # API layer tests
 ├── applescript.test.ts   # Unit tests for pure AppleScript utility functions
+├── auth.test.ts          # Token / auth helpers
+├── errors.test.ts        # Error formatting, process guards, logError
+├── formatters.test.ts    # CLI formatters
+├── info.test.ts          # Install-source detection and info formatting
+├── parsers.test.ts       # AppleScript output parsers
+├── server.test.ts        # HTTP + MCP endpoints, resilience
 └── types.test.ts         # Unit tests for Zod schemas
 docs/
 ├── guideline.md          # Project guidelines (this file)
@@ -55,6 +80,24 @@ docs/
     └── release.yml       # Auto-release on push to main
 ```
 
+## Server Reliability
+
+The HTTP server is a long-running process: a single stray rejection must never take it down,
+and every failure must be readable in the log.
+
+| Rule | Where | Why |
+|------|-------|-----|
+| `installProcessGuards()` inside `startServer()` / `startMcpServer()` | `src/server/guards.ts` | The CLI imports these modules, so `import.meta.main` is `false` — guards placed there never run |
+| `Bun.serve({ error })` handler | `src/utils/create-server.ts` | Without it Bun prints a bare `error: undefined` and exits |
+| `idleTimeout: 0` | `src/utils/create-server.ts` | Bun's 10s default aborts MCP streams and slow AppleScript calls |
+| `GET /mcp` → `405` | `src/server/mcp-http.ts` | In stateless mode a server-initiated SSE stream would hang open forever |
+| Transport + MCP server closed after every request | `src/server/mcp-http.ts` | One transport per request must not leak |
+| Never read `err.message` directly | everywhere | Anything can be thrown, including `undefined`; use `errorMessage()` / `formatError()` |
+
+Errors are printed by `logError()` with name, message, `code`, stack, `cause` chain and aggregated
+errors. On a TTY they are drawn above the request box; when stdout is piped they become plain
+ANSI-free lines. Client disconnects (`isClientAbort()`) are logged as expected noise, not crashes.
+
 ## Commands
 
 ```bash
@@ -64,7 +107,7 @@ bun run dev                # Watch mode (tsdown)
 
 # Run
 bun run start              # Start MCP server (stdio)
-bun run server             # Start HTTP API server (port 3001)
+bun run server             # Start HTTP API server (port 32123)
 bun run cli                # Run CLI
 
 # Testing
@@ -90,8 +133,8 @@ bun run release            # Build + test + semantic-release + npm publish
 - `buildProperties(props)` — builds property list syntax
 - `capitalize(s)` — capitalizes first letter
 
-### Tools (`tools/*.ts`)
-16 operations grouped by domain. Each takes typed args and returns `Promise<string>`.
+### Operations (`api/*.ts`)
+17 operations grouped by domain. Each takes typed args validated by a Zod schema.
 
 ### Tunneling (`utils/tunnel.ts`)
 Three providers for exposing the local HTTP server remotely:
@@ -105,7 +148,7 @@ CLI flag: `--tunnel`, `--tunnel=ngrok`, `--tunnel=frp`. Also via env: `AWESOME_T
 - **JS/TS API** (`api.ts`) — `import { createTodo } from 'awesome-things'`
 - **MCP server** (`mcp.ts`) — stdio transport for Claude/Cursor
 - **CLI** (`cli.ts`) — `things add "Buy milk"`
-- **HTTP server** (`server.ts`) — `curl http://localhost:3001/todos`
+- **HTTP server** (`server.ts`) — `curl http://localhost:32123/api/todos`
 - **Aggregator** (`index.ts`) — re-exports everything from `api.ts`
 
 ## Lint

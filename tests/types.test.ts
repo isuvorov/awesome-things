@@ -267,3 +267,24 @@ describe('toolSchemas', () => {
     expect(toolSchemas.move_todo.properties.id.type).toBe('string');
   });
 });
+
+describe('case-insensitive enums', () => {
+  test('ListTodosArgsSchema lowercases list and status', () => {
+    const result = ListTodosArgsSchema.parse({ list: 'Today', status: 'OPEN' });
+    expect(result.list).toBe('today');
+    expect(result.status).toBe('open');
+  });
+
+  test('MoveTodoArgsSchema lowercases destination', () => {
+    const result = MoveTodoArgsSchema.parse({ todo_name: 'X', destination: 'Evening' });
+    expect(result.destination).toBe('evening');
+  });
+
+  test('CreateTodoArgsSchema lowercases list', () => {
+    expect(CreateTodoArgsSchema.parse({ name: 'X', list: 'INBOX' }).list).toBe('inbox');
+  });
+
+  test('still rejects a value that is not in the enum', () => {
+    expect(() => ListTodosArgsSchema.parse({ list: 'Tomorrow' })).toThrow();
+  });
+});

@@ -1,5 +1,16 @@
 import { z } from 'zod';
 
+/**
+ * Enum that accepts any casing — clients routinely send "Today" or "OPEN".
+ * `z.preprocess` keeps the enum visible in the generated JSON Schema.
+ */
+function lowerEnum<const T extends readonly [string, ...string[]]>(values: T) {
+  return z.preprocess(
+    (value) => (typeof value === 'string' ? value.toLowerCase() : value),
+    z.enum(values),
+  );
+}
+
 // ── Result Types ────────────────────────────────────────────────
 
 export interface TodoItem {
@@ -72,8 +83,7 @@ export const CreateTodoArgsSchema = z.object({
   notes: z.string().optional().describe('Additional notes for the todo'),
   due_date: z.string().optional().describe('Due date in YYYY-MM-DD format'),
   tags: z.array(z.string()).optional().describe('List of tag names to apply'),
-  list: z
-    .enum(['inbox', 'today', 'anytime', 'someday'])
+  list: lowerEnum(['inbox', 'today', 'anytime', 'someday'])
     .optional()
     .describe('Target list (defaults to inbox). With project: also moves todo to this list'),
   project: z.string().optional().describe('Project name to create the todo in'),
@@ -82,11 +92,10 @@ export const CreateTodoArgsSchema = z.object({
 export type CreateTodoArgs = z.infer<typeof CreateTodoArgsSchema>;
 
 export const ListTodosArgsSchema = z.object({
-  list: z
-    .enum(['inbox', 'today', 'anytime', 'upcoming', 'someday', 'logbook'])
-    .describe('List to retrieve todos from'),
-  status: z
-    .enum(['open', 'completed', 'all'])
+  list: lowerEnum(['inbox', 'today', 'anytime', 'upcoming', 'someday', 'logbook']).describe(
+    'List to retrieve todos from',
+  ),
+  status: lowerEnum(['open', 'completed', 'all'])
     .optional()
     .describe('Filter by status (defaults to all)'),
 });
@@ -139,8 +148,7 @@ export type ListProjectsArgs = z.infer<typeof ListProjectsArgsSchema>;
 
 export const GetProjectTodosArgsSchema = z.object({
   project_name: z.string().describe('Name of the project'),
-  status: z
-    .enum(['open', 'completed', 'all'])
+  status: lowerEnum(['open', 'completed', 'all'])
     .optional()
     .describe('Filter by status (defaults to all)'),
 });
@@ -150,6 +158,12 @@ export const UpdateProjectArgsSchema = z.object({
   project_name: z.string().describe('Current name of the project to update'),
   new_name: z.string().optional().describe('New name for the project'),
   new_notes: z.string().optional().describe('New notes for the project'),
+  new_due_date: z
+    .string()
+    .optional()
+    .describe("New due date (YYYY-MM-DD format, or 'none' to clear)"),
+  new_tags: z.array(z.string()).optional().describe('New list of tag names (empty array clears)'),
+  new_area: z.string().optional().describe("New area for the project ('none' to detach)"),
 });
 export type UpdateProjectArgs = z.infer<typeof UpdateProjectArgsSchema>;
 
@@ -166,9 +180,9 @@ export type ListAreasArgs = z.infer<typeof ListAreasArgsSchema>;
 export const MoveTodoArgsBaseSchema = z.object({
   id: z.string().optional().describe('ID of the todo to move'),
   todo_name: z.string().optional().describe('Name of the todo to move'),
-  destination: z
-    .enum(['inbox', 'today', 'evening', 'anytime', 'upcoming', 'someday'])
-    .describe('Destination list'),
+  destination: lowerEnum(['inbox', 'today', 'evening', 'anytime', 'upcoming', 'someday']).describe(
+    'Destination list',
+  ),
 });
 export const MoveTodoArgsSchema = MoveTodoArgsBaseSchema.refine(idOrTodoName, idOrTodoNameMsg);
 export type MoveTodoArgs = z.infer<typeof MoveTodoArgsSchema>;
@@ -311,6 +325,16 @@ export const toolSchemas = {
       project_name: { type: 'string', description: 'Current name of the project to update' },
       new_name: { type: 'string', description: 'New name for the project' },
       new_notes: { type: 'string', description: 'New notes for the project' },
+      new_due_date: {
+        type: 'string',
+        description: "New due date (YYYY-MM-DD format, or 'none' to clear)",
+      },
+      new_tags: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'New list of tag names (empty array clears)',
+      },
+      new_area: { type: 'string', description: "New area for the project ('none' to detach)" },
     },
     required: ['project_name'],
   },

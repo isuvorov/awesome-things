@@ -5,6 +5,9 @@ let returnData = false;
 
 mock.module('../src/api/todo-ops.js', () => ({
   createTodo: mock(async (args: { name: string; project?: string }) => {
+    // Sentinels used by the resilience tests below: anything can be thrown in JS.
+    if (args.name === 'THROW_UNDEFINED') throw undefined;
+    if (args.name === 'THROW_STRING') throw 'plain string failure';
     const suffix = args.project ? ` in project "${args.project}"` : '';
     return { message: `Created todo: ${args.name}${suffix}` };
   }),
@@ -40,6 +43,9 @@ mock.module('../src/api/todo-ops.js', () => ({
 mock.module('../src/api/project-ops.js', () => ({
   createProject: mock(async (args: { name: string }) => ({
     message: `Created project: ${args.name}`,
+  })),
+  updateProject: mock(async (args: { project_name: string }) => ({
+    message: `Updated project: "${args.project_name}"`,
   })),
   listProjects: mock(async (args: { area?: string }) => {
     if (!returnData) return { area: args.area, projects: [] };
@@ -372,6 +378,20 @@ describe('POST /api/projects', () => {
   });
 });
 
+describe('PUT /api/projects', () => {
+  test('updates a project and returns message', async () => {
+    const res = await fetch(`${baseUrl}/api/projects`, {
+      method: 'PUT',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project_name: 'Old project', new_notes: 'New notes' }),
+    });
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.ok).toBe(true);
+    expect(data.message).toContain('Updated project');
+  });
+});
+
 describe('GET /api/projects/:name/todos', () => {
   test('returns project todos', async () => {
     returnData = true;
@@ -575,5 +595,125 @@ describe('response format', () => {
     const data = await res.json();
     expect(data.ok).toBe(false);
     expect(typeof data.error).toBe('string');
+  });
+});
+
+// ── MCP over HTTP ────────────────────────────────────────────────
+
+function mcpHeaders(token = TEST_TOKEN) {
+  return {
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json',
+    Accept: 'application/json, text/event-stream',
+  };
+}
+
+describe('MCP endpoint', () => {
+  test('answers tools/list over POST', async () => {
+    const res = await fetch(`${baseUrl}/mcp`, {
+      method: 'POST',
+      headers: mcpHeaders(),
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+    });
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).toContain('create_todo');
+  });
+
+  test('works with token-in-path auth', async () => {
+    const res = await fetch(`${baseUrl}/mcp/auth/${TEST_TOKEN}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+    });
+    expect(res.status).toBe(200);
+  });
+
+  test('rejects a wrong token in path', async () => {
+    const res = await fetch(`${baseUrl}/mcp/auth/wrong-token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  test('refuses GET with 405 instead of hanging an SSE stream open', async () => {
+    const res = await fetch(`${baseUrl}/mcp`, {
+      headers: { ...mcpHeaders(), Accept: 'text/event-stream' },
+    });
+    expect(res.status).toBe(405);
+    expect(res.headers.get('allow')).toContain('POST');
+    const data = await res.json();
+    expect(data.error.message).toContain('Method Not Allowed');
+  });
+
+  test('answers CORS preflight', async () => {
+    const res = await fetch(`${baseUrl}/mcp`, { method: 'OPTIONS' });
+    expect(res.status).toBe(204);
+    expect(res.headers.get('access-control-allow-origin')).toBe('*');
+  });
+
+  test('survives a malformed MCP body', async () => {
+    const res = await fetch(`${baseUrl}/mcp`, {
+      method: 'POST',
+      headers: mcpHeaders(),
+      body: 'not json at all',
+    });
+    expect(res.status).toBeGreaterThanOrEqual(400);
+
+    const health = await fetch(`${baseUrl}/health`);
+    expect(health.status).toBe(200);
+  });
+});
+
+// ── Resilience ───────────────────────────────────────────────────
+
+describe('server resilience', () => {
+  test('turns a thrown undefined into a 500 JSON error and stays up', async () => {
+    const res = await fetch(`${baseUrl}/api/todos`, {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'THROW_UNDEFINED' }),
+    });
+    expect(res.status).toBe(500);
+    const data = await res.json();
+    expect(data.ok).toBe(false);
+    expect(data.error).toContain('undefined');
+
+    const health = await fetch(`${baseUrl}/health`);
+    expect(health.status).toBe(200);
+  });
+
+  test('turns a thrown string into a 500 JSON error and stays up', async () => {
+    const res = await fetch(`${baseUrl}/api/todos`, {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'THROW_STRING' }),
+    });
+    expect(res.status).toBe(500);
+    const data = await res.json();
+    expect(data.error).toBe('plain string failure');
+
+    const health = await fetch(`${baseUrl}/health`);
+    expect(health.status).toBe(200);
+  });
+
+  test('keeps serving after a client aborts mid-request', async () => {
+    const controller = new AbortController();
+    const pending = fetch(`${baseUrl}/mcp`, {
+      method: 'POST',
+      headers: mcpHeaders(),
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+      signal: controller.signal,
+    });
+    controller.abort();
+    await pending.catch(() => {});
+
+    const health = await fetch(`${baseUrl}/health`);
+    expect(health.status).toBe(200);
   });
 });

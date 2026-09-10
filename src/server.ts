@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import {
   completeTodo,
   createProject,
@@ -16,15 +15,25 @@ import {
   removeProjectFromArea,
   removeTodoFromProject,
   searchTodos,
+  updateProject,
   updateTodo,
 } from './api.js';
 import { defaultPort } from './config.js';
+import { errorMessage } from './server/errors.js';
+import { installProcessGuards } from './server/guards.js';
 import { body, handle, json, MCP_CORS_HEADERS } from './server/http.js';
-import { type LogExtra, logRequest, printStartupBanner, red, yellow } from './server/logger.js';
+import {
+  isInteractive,
+  type LogExtra,
+  logError,
+  logRequest,
+  printStartupBanner,
+  yellow,
+} from './server/logger.js';
+import { handleMcpRequest, type McpLogSink } from './server/mcp-http.js';
 import { APP_ID, MAX_PORT_ATTEMPTS, probePort } from './server/port.js';
 import { checkAuth, extractPathToken, resolveToken } from './utils/auth.js';
 import { createServer } from './utils/create-server.js';
-import { createMcpServer } from './utils/mcp-server.js';
 import { generateOpenApiSpec, getHomePage, getSwaggerHtml } from './utils/openapi.js';
 import { resolveDomain, type TunnelProvider } from './utils/tunnel.js';
 
@@ -43,6 +52,7 @@ async function handleRoute(
   pathname: string,
   method: string,
   token: string | undefined,
+  mcpLog: McpLogSink,
 ): Promise<Response> {
   // ── Home page (no auth) ────────────────────────────────────
   if (pathname === '/' && method === 'GET') {
@@ -67,14 +77,7 @@ async function handleRoute(
     if (token && pathToken !== token) {
       return json({ ok: false, error: 'Unauthorized' }, 401);
     }
-    const transport = new WebStandardStreamableHTTPServerTransport();
-    const mcpServer = createMcpServer();
-    await mcpServer.connect(transport);
-    const response = await transport.handleRequest(req);
-    for (const [key, value] of Object.entries(MCP_CORS_HEADERS)) {
-      response.headers.set(key, value);
-    }
-    return response;
+    return handleMcpRequest(req, mcpLog);
   }
 
   // ── Auth ──────────────────────────────────────────────────
@@ -83,14 +86,7 @@ async function handleRoute(
 
   // ── MCP-over-HTTP ─────────────────────────────────────────
   if (pathname === '/mcp') {
-    const transport = new WebStandardStreamableHTTPServerTransport();
-    const mcpServer = createMcpServer();
-    await mcpServer.connect(transport);
-    const response = await transport.handleRequest(req);
-    for (const [key, value] of Object.entries(MCP_CORS_HEADERS)) {
-      response.headers.set(key, value);
-    }
-    return response;
+    return handleMcpRequest(req, mcpLog);
   }
 
   // ── Swagger UI & OpenAPI spec ────────────────────────────
@@ -138,6 +134,10 @@ async function handleRoute(
 
   if (pathname === '/api/projects' && method === 'POST') {
     return handle(async () => createProject((await body(req)) as any));
+  }
+
+  if (pathname === '/api/projects' && method === 'PUT') {
+    return handle(async () => updateProject((await body(req)) as any));
   }
 
   const projectTodosMatch = pathname.match(/^\/api\/projects\/(.+)\/todos$/);
@@ -189,6 +189,9 @@ async function handleRoute(
 }
 
 export async function startServer(options: ServerOptions = {}) {
+  // Installed here (not under `import.meta.main`) because the CLI imports this module.
+  installProcessGuards();
+
   const startPort = options.port || defaultPort;
   const token = options.noToken ? undefined : resolveToken(options.token);
   const domain = resolveDomain(options.domain);
@@ -212,9 +215,16 @@ export async function startServer(options: ServerOptions = {}) {
     port,
     async fetch(req) {
       const start = performance.now();
-      const url = new URL(req.url);
-      const { pathname, search } = url;
       const method = req.method;
+
+      let url: URL;
+      try {
+        url = new URL(req.url);
+      } catch (err) {
+        logError('Malformed request URL', err);
+        return json({ ok: false, error: 'Malformed request URL' }, 400);
+      }
+      const { pathname, search } = url;
 
       // Extract MCP tool/method name + args for logging
       const extra: LogExtra = {};
@@ -233,55 +243,41 @@ export async function startServer(options: ServerOptions = {}) {
         extra.search = search;
       }
 
-      let response: Response;
+      let logged = false;
+      let status = 500;
+      const finishLog = (info: { toolError?: string } = {}) => {
+        if (logged) return;
+        logged = true;
+        logRequest(method, pathname, status, Math.round(performance.now() - start), {
+          ...extra,
+          ...(info.toolError ? { toolError: info.toolError } : {}),
+        });
+      };
+
+      // A streamed MCP response is only "done" once its stream ends, so that
+      // branch defers the log line to itself; every other branch logs right away.
+      let deferredLog = false;
+      const mcpLog = {
+        defer: () => {
+          deferredLog = true;
+        },
+        finish: (info: { status: number; toolError?: string }) => {
+          status = info.status;
+          finishLog(info);
+        },
+      };
+
       try {
-        response = await handleRoute(req, url, pathname, method, token);
-      } catch (err: any) {
-        response = json({ ok: false, error: err.message || String(err) }, 500);
+        const response = await handleRoute(req, url, pathname, method, token, mcpLog);
+        status = response.status;
+        if (!deferredLog) finishLog();
+        return response;
+      } catch (err) {
+        logError(`${method} ${pathname} failed`, err);
+        status = 500;
+        finishLog({ toolError: errorMessage(err) });
+        return json({ ok: false, error: errorMessage(err) }, 500);
       }
-
-      // For MCP tool calls, tap into the SSE stream to detect isError for logging
-      if (isMcpRoute && extra.toolName && response.status === 200 && response.body) {
-        const chunks: string[] = [];
-        const decoder = new TextDecoder();
-        const { readable, writable } = new TransformStream({
-          transform(chunk, controller) {
-            chunks.push(decoder.decode(chunk, { stream: true }));
-            controller.enqueue(chunk);
-          },
-          flush() {
-            try {
-              const text = chunks.join('');
-              const dataMatch = text.match(/^data: (.+)$/m);
-              if (dataMatch) {
-                const rpcBody = JSON.parse(dataMatch[1]);
-                const content = rpcBody?.result?.content;
-                if (Array.isArray(content) && rpcBody?.result?.isError) {
-                  const textItem = content.find((c: any) => c.type === 'text');
-                  if (textItem?.text) {
-                    extra.toolError = textItem.text;
-                  }
-                }
-              }
-            } catch {}
-            logRequest(
-              method,
-              pathname,
-              response.status,
-              Math.round(performance.now() - start),
-              extra,
-            );
-          },
-        });
-        response.body.pipeTo(writable);
-        return new Response(readable, {
-          status: response.status,
-          headers: response.headers,
-        });
-      }
-
-      logRequest(method, pathname, response.status, Math.round(performance.now() - start), extra);
-      return response;
     },
   });
 
@@ -292,21 +288,27 @@ export async function startServer(options: ServerOptions = {}) {
     printStartupBanner({ port, startPort, token, tunnelProvider });
     const frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
     let i = 0;
-    const spinner = setInterval(() => {
-      const frame = frames[i++ % frames.length];
-      process.stdout.write(
-        `\r  ${yellow(frame)} ${yellow(`Connecting ${tunnelProvider} tunnel...`)}`,
-      );
-    }, 80);
+    // A spinner in a log file is just noise — only animate on a real terminal.
+    const spinner = isInteractive
+      ? setInterval(() => {
+          const frame = frames[i++ % frames.length];
+          process.stdout.write(
+            `\r  ${yellow(frame)} ${yellow(`Connecting ${tunnelProvider} tunnel...`)}`,
+          );
+        }, 80)
+      : undefined;
+    const stopSpinner = () => {
+      if (!spinner) return;
+      clearInterval(spinner);
+      process.stdout.write('\r\x1b[2K');
+    };
     try {
       const { openTunnel } = await import('./utils/tunnel.js');
       tunnelUrl = await openTunnel(port, tunnelProvider, options.ngrokToken, domain);
-      clearInterval(spinner);
-      process.stdout.write('\r\x1b[2K');
-    } catch (err: any) {
-      clearInterval(spinner);
-      process.stdout.write('\r\x1b[2K');
-      console.error(`  ${red('✗')} Tunnel error: ${err.message || err}`);
+      stopSpinner();
+    } catch (err) {
+      stopSpinner();
+      logError(`Tunnel (${tunnelProvider}) failed — the local server keeps running`, err);
     }
     printStartupBanner({ port, startPort, token, tunnelUrl, skipHeader: true });
   } else {
@@ -317,8 +319,8 @@ export async function startServer(options: ServerOptions = {}) {
 }
 
 if (import.meta.main) {
-  startServer().catch((error) => {
-    console.error('Server error:', error);
+  startServer().catch((err) => {
+    logError('Server failed to start', err);
     process.exit(1);
   });
 }

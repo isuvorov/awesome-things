@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, test } from 'bun:test';
 import { errorMessage, formatError, isClientAbort } from '../src/server/errors.js';
 import { installProcessGuards, resetProcessGuardsForTests } from '../src/server/guards.js';
-import { logError } from '../src/server/logger.js';
+import { logError, maskSecrets } from '../src/server/logger.js';
 
 describe('errorMessage', () => {
   test('reads message from Error', () => {
@@ -148,5 +148,19 @@ describe('installProcessGuards', () => {
 
   test('survives an undefined rejection reason', () => {
     expect(() => added.rejection[0]?.(undefined, Promise.resolve())).not.toThrow();
+  });
+});
+
+describe('maskSecrets', () => {
+  test('hides a token in a query string', () => {
+    expect(maskSecrets('/api/todos?list=today&token=s3cret')).toBe('/api/todos?list=today&token=…');
+  });
+
+  test('hides a token in an auth path', () => {
+    expect(maskSecrets('/mcp/auth/s3cret')).toBe('/mcp/auth/…');
+  });
+
+  test('leaves ordinary paths alone', () => {
+    expect(maskSecrets('/api/todos?list=today')).toBe('/api/todos?list=today');
   });
 });

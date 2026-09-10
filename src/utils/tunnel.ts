@@ -4,6 +4,20 @@ export function resolveDomain(domain?: string): string | undefined {
 
 export type TunnelProvider = 'localtunnel' | 'ngrok' | 'frp';
 
+const TUNNEL_PROVIDERS: TunnelProvider[] = ['localtunnel', 'ngrok', 'frp'];
+
+/**
+ * `AWESOME_THINGS_TUNNEL` used to be read only by the CLI, so `bun run server`
+ * silently started without a tunnel. Both entry points resolve it here now.
+ * `true`/`1`/`yes` mean "any tunnel" and land on the default provider.
+ */
+export function resolveTunnelProvider(value?: string): TunnelProvider | undefined {
+  const raw = (value ?? process.env.AWESOME_THINGS_TUNNEL ?? '').trim().toLowerCase();
+  if (!raw || raw === 'false' || raw === '0' || raw === 'none') return undefined;
+  if (raw === 'true' || raw === '1' || raw === 'yes') return 'localtunnel';
+  return TUNNEL_PROVIDERS.find((provider) => provider === raw);
+}
+
 export async function openTunnel(
   port: number,
   provider: TunnelProvider,

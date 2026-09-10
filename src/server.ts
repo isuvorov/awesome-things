@@ -32,10 +32,16 @@ import {
 } from './server/logger.js';
 import { handleMcpRequest, type McpLogSink } from './server/mcp-http.js';
 import { APP_ID, MAX_PORT_ATTEMPTS, probePort } from './server/port.js';
-import { checkAuth, extractPathToken, resolveToken } from './utils/auth.js';
+import { authCookieHeader, checkAuth, extractPathToken, resolveToken } from './utils/auth.js';
 import { createServer } from './utils/create-server.js';
-import { generateOpenApiSpec, getHomePage, getSwaggerHtml } from './utils/openapi.js';
-import { resolveDomain, type TunnelProvider } from './utils/tunnel.js';
+import {
+  FAVICON_SVG,
+  generateOpenApiSpec,
+  getAuthPage,
+  getHomePage,
+  getSwaggerHtml,
+} from './utils/openapi.js';
+import { resolveDomain, resolveTunnelProvider, type TunnelProvider } from './utils/tunnel.js';
 
 export interface ServerOptions {
   port?: number;
@@ -64,6 +70,39 @@ async function handleRoute(
   // ── Health (no auth) ─────────────────────────────────────
   if (pathname === '/health' && method === 'GET') {
     return json({ ok: true, app: APP_ID, port: url.port });
+  }
+
+  // ── Favicon (no auth) ────────────────────────────────────
+  if (pathname === '/favicon.ico' && method === 'GET') {
+    return new Response(FAVICON_SVG, {
+      headers: { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'max-age=86400' },
+    });
+  }
+
+  // ── Sign-in form (no auth — it is how you get the cookie) ─
+  if (pathname === '/auth' && method === 'GET') {
+    return new Response(getAuthPage(url.searchParams.get('next') || '/'), {
+      headers: { 'Content-Type': 'text/html' },
+    });
+  }
+
+  if (pathname === '/auth' && method === 'POST') {
+    const form = new URLSearchParams(await req.text());
+    const next = form.get('next') || '/';
+    const safeNext = next.startsWith('/') ? next : '/';
+    if (token && form.get('token') !== token) {
+      return new Response(getAuthPage(safeNext, 'Wrong token'), {
+        status: 401,
+        headers: { 'Content-Type': 'text/html' },
+      });
+    }
+    return new Response(null, {
+      status: 303,
+      headers: {
+        Location: safeNext,
+        ...(token ? { 'Set-Cookie': authCookieHeader(token) } : {}),
+      },
+    });
   }
 
   // ── CORS preflight for /mcp ───────────────────────────────
@@ -282,7 +321,9 @@ export async function startServer(options: ServerOptions = {}) {
   });
 
   // ── Tunnel ──────────────────────────────────────────────────────
-  const tunnelProvider = options.tunnel;
+  // The env fallback lives here, not in the CLI: `bun run server` imports this
+  // module directly and used to ignore AWESOME_THINGS_TUNNEL entirely.
+  const tunnelProvider = options.tunnel ?? resolveTunnelProvider();
   let tunnelUrl: string | undefined;
   if (tunnelProvider) {
     printStartupBanner({ port, startPort, token, tunnelProvider });

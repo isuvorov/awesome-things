@@ -73,6 +73,13 @@ function compactArgs(args: Record<string, unknown>): string {
   return parts.length ? `{${parts.join(',')}}` : '';
 }
 
+/** A log line must never carry the token — mask it wherever it can appear. */
+export function maskSecrets(text: string): string {
+  return text
+    .replace(/([?&](?:token|authtoken|api_?key)=)[^&\s]+/gi, '$1…')
+    .replace(/(\/auth\/)[^/\s?]+/gi, '$1…');
+}
+
 function formatRequestLine(
   method: string,
   pathname: string,
@@ -100,6 +107,7 @@ function formatRequestLine(
     displayPath += extra.search;
   }
 
+  displayPath = maskSecrets(displayPath);
   const path = displayPath.length > maxPath ? `${displayPath.slice(0, maxPath - 1)}…` : displayPath;
   const statusStr = extra?.toolError ? red('ERR') : s;
   return `${time} ${m} ${path.padEnd(maxPath)} ${statusStr}  ${dur}`;
@@ -314,12 +322,14 @@ export function printStartupBanner(opts: {
       mcpServers: { things3: { url: `${tunnelUrl}${mcpPath}` } },
     });
   } else if (!tunnelProvider) {
-    console.log(`  ${arrow}  ${pad('MCP:')}  ${cyan(`${base}${mcpPath}`)}`);
+    console.log(`  ${arrow}  ${pad('WEB:')}  ${cyan(base)}`);
+    console.log(`  ${arrow}  ${pad('API:')}  ${magenta(`${base}/api`)}`);
     if (token) {
       console.log(`  ${arrow}  ${pad('Token:')}  ${yellow(token)}`);
     } else {
       console.log(`  ${arrow}  ${pad('Auth:')}  ${yellow('disabled (no token)')}`);
     }
+    console.log(`  ${arrow}  ${pad('MCP:')}  ${cyan(`${base}${mcpPath}`)}`);
     console.log();
     configLines += printConfig('MCP config (Localhost MCP)', {
       mcpServers: { things3: { url: `${base}${mcpPath}` } },

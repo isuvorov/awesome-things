@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test';
+import { resolveTunnelProvider } from '../src/utils/tunnel.js';
 
 // Simple flag to control mock data responses
 let returnData = false;
@@ -105,6 +106,10 @@ const TEST_PORT = 39_871;
 const TEST_TOKEN = 'test-token-123';
 
 beforeAll(async () => {
+  // The suite must not inherit a developer's tunnel settings — otherwise it tries
+  // to dial out to a real frp/ngrok endpoint and hangs.
+  process.env.AWESOME_THINGS_TUNNEL = '';
+  process.env.AWESOME_THINGS_DOMAIN = '';
   const { startServer } = await import('../src/server.js');
   server = await startServer({
     port: TEST_PORT,
@@ -715,5 +720,96 @@ describe('server resilience', () => {
 
     const health = await fetch(`${baseUrl}/health`);
     expect(health.status).toBe(200);
+  });
+});
+
+// ── Browser auth via ?token= ─────────────────────────────────────
+
+describe('browser auth', () => {
+  test('serves the favicon without auth', async () => {
+    const res = await fetch(`${baseUrl}/favicon.ico`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('image/svg+xml');
+  });
+
+  test('serves the sign-in form without auth', async () => {
+    const res = await fetch(`${baseUrl}/auth`);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain('name="token"');
+    expect(html).not.toContain(TEST_TOKEN);
+  });
+
+  test('a wrong token re-renders the form with an error', async () => {
+    const res = await fetch(`${baseUrl}/auth`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ token: 'nope', next: '/' }).toString(),
+    });
+    expect(res.status).toBe(401);
+    expect(await res.text()).toContain('Wrong token');
+  });
+
+  test('the right token sets an HttpOnly cookie that authenticates the API', async () => {
+    const res = await fetch(`${baseUrl}/auth`, {
+      method: 'POST',
+      redirect: 'manual',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ token: TEST_TOKEN, next: '/' }).toString(),
+    });
+    expect(res.status).toBe(303);
+    const cookie = res.headers.get('set-cookie') ?? '';
+    expect(cookie).toContain('HttpOnly');
+
+    const api = await fetch(`${baseUrl}/api/tags`, {
+      headers: { Cookie: cookie.split(';')[0]! },
+    });
+    expect(api.status).toBe(200);
+  });
+
+  test('refuses to redirect to an external next', async () => {
+    const res = await fetch(`${baseUrl}/auth`, {
+      method: 'POST',
+      redirect: 'manual',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ token: TEST_TOKEN, next: 'https://evil.example' }).toString(),
+    });
+    expect(res.headers.get('location')).toBe('/');
+  });
+
+  test('a token in the query string is no longer accepted', async () => {
+    const res = await fetch(`${baseUrl}/api/tags?token=${TEST_TOKEN}`);
+    expect(res.status).toBe(401);
+  });
+
+  test('home page carries no token', async () => {
+    const res = await fetch(`${baseUrl}/`);
+    expect(res.status).toBe(200);
+    expect(await res.text()).not.toContain(TEST_TOKEN);
+  });
+});
+
+// ── tunnel provider resolution ──────────────────────────────────
+
+describe('resolveTunnelProvider', () => {
+  test('reads the env var when no flag is given', () => {
+    process.env.AWESOME_THINGS_TUNNEL = 'frp';
+    expect(resolveTunnelProvider()).toBe('frp');
+  });
+
+  test('prefers an explicit value over the env', () => {
+    process.env.AWESOME_THINGS_TUNNEL = 'frp';
+    expect(resolveTunnelProvider('ngrok')).toBe('ngrok');
+  });
+
+  test('treats truthy words as the default provider', () => {
+    expect(resolveTunnelProvider('true')).toBe('localtunnel');
+  });
+
+  test('returns undefined when unset or disabled', () => {
+    process.env.AWESOME_THINGS_TUNNEL = '';
+    expect(resolveTunnelProvider()).toBeUndefined();
+    expect(resolveTunnelProvider('none')).toBeUndefined();
+    expect(resolveTunnelProvider('nonsense')).toBeUndefined();
   });
 });

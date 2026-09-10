@@ -248,6 +248,7 @@ export function getHomePage() {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Things3</title>
+  <link rel="icon" href="/favicon.ico">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f7; color: #1d1d1f; padding: 24px; max-width: 720px; margin: 0 auto; }
@@ -284,6 +285,7 @@ export function getHomePage() {
     const listEl = document.getElementById('list');
     let current = 'today';
 
+
     function renderTabs() {
       tabsEl.innerHTML = '';
       for (const l of lists) {
@@ -299,6 +301,8 @@ export function getHomePage() {
       listEl.innerHTML = '<li class="loading">Loading...</li>';
       try {
         const res = await fetch('/api/todos?list=' + current);
+        // Cookie missing or expired — send the browser to the token form.
+        if (res.status === 401) { location.href = '/auth?next=' + encodeURIComponent(location.pathname); return; }
         const data = await res.json();
         if (!data.ok) throw new Error(data.error);
         const todos = data.todos;
@@ -354,6 +358,48 @@ export function getSwaggerHtml() {
       layout: 'BaseLayout',
     });
   </script>
+</body>
+</html>`;
+}
+
+/** 📋 as a favicon — served unauthenticated so the tab icon never 401s. */
+export const FAVICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text x="50%" y="85" text-anchor="middle" font-size="90">📋</text></svg>`;
+
+/** Token form. Posts to /auth, which answers with an HttpOnly cookie. */
+export function getAuthPage(next = '/', error?: string) {
+  const safeNext = next.startsWith('/') ? next : '/';
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Things3 — sign in</title>
+  <link rel="icon" href="/favicon.ico">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f7; color: #1d1d1f; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; }
+    .card { background: #fff; border: 1px solid #e8e8ed; border-radius: 14px; padding: 28px; width: 100%; max-width: 380px; }
+    h1 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+    p { color: #86868b; font-size: 13px; margin-bottom: 18px; line-height: 1.5; }
+    input { width: 100%; padding: 10px 12px; font-size: 14px; border: 1px solid #d2d2d7; border-radius: 9px; margin-bottom: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    input:focus { outline: none; border-color: #0071e3; }
+    button { width: 100%; padding: 10px; font-size: 14px; font-weight: 600; color: #fff; background: #0071e3; border: 0; border-radius: 9px; cursor: pointer; }
+    button:hover { background: #0077ed; }
+    .error { color: #ff3b30; font-size: 13px; margin-bottom: 12px; }
+    code { background: #f5f5f7; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Things3</h1>
+    <p>Paste the token printed on server startup, or the value of <code>AWESOME_THINGS_TOKEN</code>.</p>
+    ${error ? `<div class="error">${error}</div>` : ''}
+    <form method="POST" action="/auth">
+      <input type="hidden" name="next" value="${safeNext}">
+      <input type="password" name="token" placeholder="Token" autofocus autocomplete="current-password">
+      <button type="submit">Sign in</button>
+    </form>
+  </div>
 </body>
 </html>`;
 }

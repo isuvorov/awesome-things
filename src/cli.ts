@@ -329,7 +329,13 @@ yargs(hideBin(process.argv))
                 describe: 'Current project name',
               })
               .option('new-name', { type: 'string', describe: 'New name' })
-              .option('new-notes', { type: 'string', describe: 'New notes' }),
+              .option('new-notes', { type: 'string', describe: 'New notes' })
+              .option('new-due', {
+                type: 'string',
+                describe: "New due date (YYYY-MM-DD or 'none')",
+              })
+              .option('new-tags', { type: 'array', string: true, describe: 'New tags' })
+              .option('new-area', { type: 'string', describe: "New area (or 'none')" }),
           (argv) =>
             run(
               () =>
@@ -337,6 +343,9 @@ yargs(hideBin(process.argv))
                   project_name: argv.name!,
                   new_name: argv.newName as string | undefined,
                   new_notes: argv.newNotes as string | undefined,
+                  new_due_date: argv.newDue as string | undefined,
+                  new_tags: argv.newTags as string[] | undefined,
+                  new_area: argv.newArea as string | undefined,
                 }),
               fmt.formatAction,
             ),

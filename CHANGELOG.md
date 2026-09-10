@@ -1,3 +1,11 @@
+# [1.2.0](https://github.com/isuvorov/awesome-things/compare/v1.1.1...v1.2.0) (2026-09-10)
+
+
+### Features
+
+* **todos:** accept a reminder time in when (YYYY-MM-DD@HH:MM) ([394d033](https://github.com/isuvorov/awesome-things/commit/394d033e42ed1ad3c9a41d6146719ea07d7898ab))
+* **todos:** support Things' When date, separate from the deadline ([079c1b9](https://github.com/isuvorov/awesome-things/commit/079c1b9c5c2ce2d2a8561da40a1c20383f00f97a))
+
 ## [1.1.1](https://github.com/isuvorov/awesome-things/compare/v1.1.0...v1.1.1) (2026-09-10)
 
 

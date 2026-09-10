@@ -3,6 +3,7 @@ import {
   buildDateVar,
   buildProperties,
   capitalize,
+  isTerminologyFailure,
   quoteString,
   tellThings,
 } from '../src/utils/applescript.js';
@@ -108,5 +109,39 @@ describe('tellThings', () => {
     expect(result).toContain('tell application "Things3"');
     expect(result).toContain('set x to 1\nreturn x');
     expect(result).toContain('end tell');
+  });
+});
+
+describe('isTerminologyFailure', () => {
+  test('recognises a lost class name', () => {
+    expect(
+      isTerminologyFailure('60:62: syntax error: Expected class name but found “to”. (-2741)'),
+    ).toBe(true);
+  });
+
+  test('recognises the -2740 variant', () => {
+    expect(
+      isTerminologyFailure(
+        "31:39: syntax error: A class name can't go after this identifier. (-2740)",
+      ),
+    ).toBe(true);
+  });
+
+  test('recognises a class demoted to a variable', () => {
+    expect(
+      isTerminologyFailure('42:46: execution error: The variable tags is not defined. (-2753)'),
+    ).toBe(true);
+  });
+
+  test('recognises a blocked Apple Event', () => {
+    expect(isTerminologyFailure("Things3 got an error: Application isn't running. (-600)")).toBe(
+      true,
+    );
+  });
+
+  test('leaves a genuine Things3 error alone', () => {
+    expect(
+      isTerminologyFailure('execution error: Things3 got an error: Can’t get area "AI". (-1728)'),
+    ).toBe(false);
   });
 });

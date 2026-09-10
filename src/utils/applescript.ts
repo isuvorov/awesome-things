@@ -32,6 +32,22 @@ function spawnOsascript(script: string): Promise<OsascriptResult> {
   });
 }
 
+/**
+ * When macOS refuses to hand over an app's scripting dictionary, AppleScript stops
+ * recognising its terms: `to do` is no longer a class, `tags` becomes a plain
+ * variable. Every call fails at once, with errors that look like our own syntax
+ * bugs — so name the real cause instead of forwarding raw osascript output.
+ */
+export function isTerminologyFailure(stderr: string): boolean {
+  return (
+    /\(-274[01]\)/.test(stderr) ||
+    /-1743/.test(stderr) ||
+    /The variable (to|to ?dos?|tags|areas|projects|lists) is not defined/.test(stderr) ||
+    /Expected (class name|expression) but found “?to”?/.test(stderr) ||
+    /Application isn’t running|Application isn't running/.test(stderr)
+  );
+}
+
 function isDebug(): boolean {
   return debug === '*' || debug === 'applescript' || debug === 'things';
 }
@@ -45,10 +61,20 @@ export async function execute(script: string): Promise<string> {
   const { stdout, stderr, exitCode } = await spawnOsascript(script);
 
   if (exitCode !== 0) {
+    const detail = stderr.trim();
     if (isDebug()) {
-      console.error('\x1b[31m[applescript] ✗\x1b[0m', stderr.trim());
+      console.error('\x1b[31m[applescript] ✗\x1b[0m', detail);
     }
-    throw new Error(`AppleScript error (code ${exitCode}): ${stderr.trim()}`);
+    if (isTerminologyFailure(detail)) {
+      throw new Error(
+        'Things3 scripting is unavailable: macOS did not hand this process the ' +
+          'Things3 AppleScript dictionary, so `to do`, `tags` and friends stopped ' +
+          'being known terms. Check that Things3 is running, and that the app you ' +
+          'started this server from is allowed under System Settings → Privacy & ' +
+          `Security → Automation. Raw error: ${detail}`,
+      );
+    }
+    throw new Error(`AppleScript error (code ${exitCode}): ${detail}`);
   }
 
   if (isDebug()) {

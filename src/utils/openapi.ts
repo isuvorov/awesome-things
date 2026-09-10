@@ -54,6 +54,13 @@ const routes: RouteMapping[] = [
     tag: 'Projects',
   },
   {
+    method: 'put',
+    path: '/api/projects',
+    toolKey: 'update_project',
+    summary: 'Update a project',
+    tag: 'Projects',
+  },
+  {
     method: 'get',
     path: '/api/projects/{name}/todos',
     toolKey: 'get_project_todos',

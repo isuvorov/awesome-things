@@ -6,6 +6,7 @@ import type {
   GetProjectTodosResult,
   ListProjectsArgs,
   ListProjectsResult,
+  UpdateProjectArgs,
 } from '../types.js';
 import { buildProperties, execute, quoteString, tellThings } from '../utils/applescript.js';
 
@@ -26,6 +27,31 @@ export async function createProject(args: CreateProjectArgs): Promise<ActionResu
 
   const projId = await execute(script);
   return { message: `Created project: ${args.name}`, id: projId };
+}
+
+export async function updateProject(args: UpdateProjectArgs): Promise<ActionResult> {
+  const label = `"${args.project_name}"`;
+
+  // Bind the project to a variable up front so a rename does not break the
+  // subsequent commands (which would otherwise resolve it by its old name).
+  const commands = [`set theProject to project ${quoteString(args.project_name)}`];
+
+  if (args.new_name) {
+    commands.push(`set name of theProject to ${quoteString(args.new_name)}`);
+  }
+
+  if (args.new_notes !== undefined) {
+    commands.push(`set notes of theProject to ${quoteString(args.new_notes)}`);
+  }
+
+  if (commands.length === 1) {
+    return { message: `No updates specified for project: ${label}` };
+  }
+
+  commands.push('return id of theProject');
+  const script = tellThings(commands.join('\n'));
+  const projId = await execute(script);
+  return { message: `Updated project: ${label}`, id: projId };
 }
 
 export async function listProjects(args: ListProjectsArgs): Promise<ListProjectsResult> {

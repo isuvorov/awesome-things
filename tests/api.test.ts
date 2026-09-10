@@ -63,7 +63,12 @@ import {
   removeProjectFromArea,
   removeTodoFromProject,
 } from '../src/api/move-ops.js';
-import { createProject, getProjectTodos, listProjects } from '../src/api/project-ops.js';
+import {
+  createProject,
+  getProjectTodos,
+  listProjects,
+  updateProject,
+} from '../src/api/project-ops.js';
 import {
   completeTodo,
   createTodo,
@@ -390,6 +395,47 @@ describe('createProject', () => {
     resetExecute('PROJ-ID3');
     await createProject({ name: 'Proj', area: 'Work' });
     expect(executeCalls[0]).toContain('area:area "Work"');
+  });
+});
+
+describe('updateProject', () => {
+  test('updates notes and returns id', async () => {
+    resetExecute('UPD-PROJ');
+    const result = await updateProject({ project_name: 'Proj', new_notes: 'New notes' });
+    expect(result.message).toBe('Updated project: "Proj"');
+    expect(result.id).toBe('UPD-PROJ');
+    expect(executeCalls[0]).toContain('set theProject to project "Proj"');
+    expect(executeCalls[0]).toContain('set notes of theProject to "New notes"');
+    expect(executeCalls[0]).toContain('return id of theProject');
+  });
+
+  test('updates name', async () => {
+    resetExecute('UPD-PROJ2');
+    await updateProject({ project_name: 'Old', new_name: 'New' });
+    expect(executeCalls[0]).toContain('set theProject to project "Old"');
+    expect(executeCalls[0]).toContain('set name of theProject to "New"');
+  });
+
+  test('combines name and notes in one script', async () => {
+    resetExecute('UPD-PROJ3');
+    await updateProject({ project_name: 'Proj', new_name: 'Renamed', new_notes: 'Notes' });
+    const script = executeCalls[0];
+    expect(script).toContain('set name of theProject to "Renamed"');
+    expect(script).toContain('set notes of theProject to "Notes"');
+    expect(script).toContain('return id of theProject');
+  });
+
+  test('clears notes with empty string', async () => {
+    resetExecute('UPD-PROJ4');
+    await updateProject({ project_name: 'Proj', new_notes: '' });
+    expect(executeCalls[0]).toContain('set notes of theProject to ""');
+  });
+
+  test('returns no-op message when no updates specified', async () => {
+    resetExecute();
+    const result = await updateProject({ project_name: 'Proj' });
+    expect(result.message).toBe('No updates specified for project: "Proj"');
+    expect(executeCalls).toHaveLength(0);
   });
 });
 

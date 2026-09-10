@@ -10,6 +10,7 @@ import {
   MoveTodoToProjectArgsSchema,
   SearchTodosArgsSchema,
   toolSchemas,
+  UpdateProjectArgsSchema,
   UpdateTodoArgsSchema,
 } from '../src/types.js';
 
@@ -149,6 +150,27 @@ describe('CreateProjectArgsSchema', () => {
   });
 });
 
+describe('UpdateProjectArgsSchema', () => {
+  test('accepts project_name only', () => {
+    const result = UpdateProjectArgsSchema.parse({ project_name: 'Q1 Planning' });
+    expect(result.project_name).toBe('Q1 Planning');
+  });
+
+  test('accepts new_name and new_notes', () => {
+    const result = UpdateProjectArgsSchema.parse({
+      project_name: 'Q1 Planning',
+      new_name: 'Q1 Roadmap',
+      new_notes: 'Updated description',
+    });
+    expect(result.new_name).toBe('Q1 Roadmap');
+    expect(result.new_notes).toBe('Updated description');
+  });
+
+  test('rejects missing project_name', () => {
+    expect(() => UpdateProjectArgsSchema.parse({ new_name: 'X' })).toThrow();
+  });
+});
+
 describe('ListProjectsArgsSchema', () => {
   test('accepts empty', () => {
     const result = ListProjectsArgsSchema.parse({});
@@ -209,9 +231,13 @@ describe('MoveTodoToProjectArgsSchema', () => {
 });
 
 describe('toolSchemas', () => {
-  test('has all 16 tool schemas', () => {
+  test('has all 17 tool schemas', () => {
     const tools = Object.keys(toolSchemas);
-    expect(tools).toHaveLength(16);
+    expect(tools).toHaveLength(17);
+  });
+
+  test('update_project requires project_name', () => {
+    expect(toolSchemas.update_project.required).toContain('project_name');
   });
 
   test('create_todo requires name', () => {

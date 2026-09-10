@@ -8,9 +8,10 @@ import {
   removeProjectFromArea,
   removeTodoFromProject,
 } from '../api/move-ops.js';
-import { createProject, getProjectTodos, listProjects } from '../api/project-ops.js';
+import { createProject, getProjectTodos, listProjects, updateProject } from '../api/project-ops.js';
 import { completeTodo, createTodo, listTodos, searchTodos, updateTodo } from '../api/todo-ops.js';
 import { appName, appVersion } from '../config.js';
+import { errorMessage } from '../server/errors.js';
 import {
   CompleteTodoArgsBaseSchema,
   CreateProjectArgsSchema,
@@ -27,6 +28,7 @@ import {
   RemoveProjectFromAreaArgsSchema,
   RemoveTodoFromProjectArgsBaseSchema,
   SearchTodosArgsSchema,
+  UpdateProjectArgsSchema,
   UpdateTodoArgsBaseSchema,
 } from '../types.js';
 
@@ -36,7 +38,7 @@ function mcpHandler(fn: (args: any) => Promise<any>) {
       const result = await fn(args);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = errorMessage(error);
       return {
         content: [
           {
@@ -100,6 +102,13 @@ export function createMcpServer(): McpServer {
     'Create a new project in Things3',
     CreateProjectArgsSchema.shape,
     mcpHandler(createProject),
+  );
+
+  server.tool(
+    'update_project',
+    "Update an existing project's name or notes in Things3",
+    UpdateProjectArgsSchema.shape,
+    mcpHandler(updateProject),
   );
 
   server.tool(

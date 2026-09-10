@@ -7,7 +7,12 @@ export {
   removeProjectFromArea,
   removeTodoFromProject,
 } from './api/move-ops.js';
-export { createProject, getProjectTodos, listProjects } from './api/project-ops.js';
+export {
+  createProject,
+  getProjectTodos,
+  listProjects,
+  updateProject,
+} from './api/project-ops.js';
 export { completeTodo, createTodo, listTodos, searchTodos, updateTodo } from './api/todo-ops.js';
 export type {
   ActionResult,
@@ -33,6 +38,7 @@ export type {
   SearchTodosArgs,
   SearchTodosResult,
   TodoItem,
+  UpdateProjectArgs,
   UpdateTodoArgs,
 } from './types.js';
 export { execute, quoteString, tellThings } from './utils/applescript.js';

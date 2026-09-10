@@ -146,6 +146,13 @@ export const GetProjectTodosArgsSchema = z.object({
 });
 export type GetProjectTodosArgs = z.infer<typeof GetProjectTodosArgsSchema>;
 
+export const UpdateProjectArgsSchema = z.object({
+  project_name: z.string().describe('Current name of the project to update'),
+  new_name: z.string().optional().describe('New name for the project'),
+  new_notes: z.string().optional().describe('New notes for the project'),
+});
+export type UpdateProjectArgs = z.infer<typeof UpdateProjectArgsSchema>;
+
 // ── List/Utility Types ──────────────────────────────────────────
 
 export const ListTagsArgsSchema = z.object({});
@@ -297,6 +304,15 @@ export const toolSchemas = {
       area: { type: 'string', description: 'Area to place the project in' },
     },
     required: ['name'],
+  },
+  update_project: {
+    type: 'object' as const,
+    properties: {
+      project_name: { type: 'string', description: 'Current name of the project to update' },
+      new_name: { type: 'string', description: 'New name for the project' },
+      new_notes: { type: 'string', description: 'New notes for the project' },
+    },
+    required: ['project_name'],
   },
   list_projects: {
     type: 'object' as const,

@@ -8,7 +8,13 @@ import type {
   ListProjectsResult,
   UpdateProjectArgs,
 } from '../types.js';
-import { buildProperties, execute, quoteString, tellThings } from '../utils/applescript.js';
+import {
+  buildDateVar,
+  buildProperties,
+  execute,
+  quoteString,
+  tellThings,
+} from '../utils/applescript.js';
 
 export async function createProject(args: CreateProjectArgs): Promise<ActionResult> {
   const props: [string, string][] = [['name', quoteString(args.name)]];
@@ -44,6 +50,28 @@ export async function updateProject(args: UpdateProjectArgs): Promise<ActionResu
     commands.push(`set notes of theProject to ${quoteString(args.new_notes)}`);
   }
 
+  if (args.new_due_date !== undefined) {
+    if (args.new_due_date === 'none') {
+      commands.push('set due date of theProject to missing value');
+    } else {
+      commands.push(buildDateVar(args.new_due_date, 'dueD'));
+      commands.push('set due date of theProject to dueD');
+    }
+  }
+
+  // An empty array is how you clear tags — `tag names` takes a comma-joined string.
+  if (args.new_tags) {
+    commands.push(`set tag names of theProject to ${quoteString(args.new_tags.join(', '))}`);
+  }
+
+  if (args.new_area !== undefined) {
+    commands.push(
+      args.new_area === 'none'
+        ? 'set area of theProject to missing value'
+        : `set area of theProject to area ${quoteString(args.new_area)}`,
+    );
+  }
+
   if (commands.length === 1) {
     return { message: `No updates specified for project: ${label}` };
   }
@@ -55,47 +83,21 @@ export async function updateProject(args: UpdateProjectArgs): Promise<ActionResu
 }
 
 export async function listProjects(args: ListProjectsArgs): Promise<ListProjectsResult> {
-  let script: string;
-  const withArea = !args.area;
-
-  if (args.area) {
-    const areaRef = `every project of area ${quoteString(args.area)}`;
-    script = tellThings(`
-set projCount to count of ${areaRef}
-if projCount is 0 then return ""
-set allIds to id of ${areaRef}
-set allNames to name of ${areaRef}
-set allStatuses to status of ${areaRef}
-set allNotes to notes of ${areaRef}
-set output to {}
-repeat with i from 1 to projCount
-  set nn to item i of allNotes
-  set AppleScript's text item delimiters to return
-  set np to text items of nn
-  set AppleScript's text item delimiters to "%0A"
-  set nn to np as string
-  set AppleScript's text item delimiters to linefeed
-  set np to text items of nn
-  set AppleScript's text item delimiters to "%0A"
-  set nn to np as string
-  set AppleScript's text item delimiters to ", "
-  set end of output to (item i of allIds) & " | " & (item i of allNames) & " | " & (item i of allStatuses as string) & " | " & nn
-end repeat
-return output as string`);
-  } else {
-    script = tellThings(`
+  // Always fetch every project with its area and filter here. Things3 has no
+  // `every project of area "X"` — that call fails with -1728.
+  const script = tellThings(`
 set projCount to count of every project
 if projCount is 0 then return ""
 set allIds to id of every project
 set allNames to name of every project
 set allStatuses to status of every project
 set allNotes to notes of every project
+set allAreas to {}
+try
+  set allAreas to area of every project
+end try
 set output to {}
 repeat with i from 1 to projCount
-  set projAreaName to ""
-  try
-    set projAreaName to name of area of project (item i of allNames)
-  end try
   set nn to item i of allNotes
   set AppleScript's text item delimiters to return
   set np to text items of nn
@@ -105,15 +107,33 @@ repeat with i from 1 to projCount
   set np to text items of nn
   set AppleScript's text item delimiters to "%0A"
   set nn to np as string
-  set AppleScript's text item delimiters to ", "
-  set end of output to (item i of allIds) & " | " & (item i of allNames) & " | " & (item i of allStatuses as string) & " | " & nn & " | Area: " & projAreaName
+  set AppleScript's text item delimiters to tab
+  set np to text items of nn
+  set AppleScript's text item delimiters to " "
+  set nn to np as string
+  set areaName to ""
+  if i is less than or equal to (count of allAreas) then
+    set a to item i of allAreas
+    if a is not missing value then
+      try
+        set areaName to name of a
+      end try
+    end if
+  end if
+  set end of output to (item i of allIds) & tab & (item i of allNames) & tab & (item i of allStatuses as string) & tab & nn & tab & areaName
 end repeat
+set AppleScript's text item delimiters to linefeed
 return output as string`);
-  }
 
   const output = await execute(script);
-  const projects = parseProjectLines(output, withArea);
-  return { area: args.area, projects };
+  const projects = parseProjectLines(output, true);
+  if (!args.area) return { projects };
+
+  const wanted = args.area.toLowerCase();
+  const filtered = projects
+    .filter((project) => (project.area || '').toLowerCase() === wanted)
+    .map(({ area: _area, ...project }) => project);
+  return { area: args.area, projects: filtered };
 }
 
 export async function getProjectTodos(args: GetProjectTodosArgs): Promise<GetProjectTodosResult> {
@@ -151,9 +171,18 @@ repeat with i from 1 to todoCount
   set np to text items of nn
   set AppleScript's text item delimiters to "%0A"
   set nn to np as string
-  set AppleScript's text item delimiters to ", "
-  set end of output to (item i of allIds) & " | " & (item i of allNames) & " | " & todoStatus & " | " & nn & " | " & todoDueDate & " | " & (item i of allTags)
+  set AppleScript's text item delimiters to tab
+  set np to text items of nn
+  set AppleScript's text item delimiters to " "
+  set nn to np as string
+  set tt to item i of allTags
+  set AppleScript's text item delimiters to tab
+  set tp to text items of tt
+  set AppleScript's text item delimiters to " "
+  set tt to tp as string
+  set end of output to (item i of allIds) & tab & (item i of allNames) & tab & todoStatus & tab & nn & tab & todoDueDate & tab & tt
 end repeat
+set AppleScript's text item delimiters to linefeed
 return output as string`);
 
   const output = await execute(script);

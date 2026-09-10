@@ -18,7 +18,7 @@ describe('parseTodoLines', () => {
   });
 
   test('parses single todo', () => {
-    const result = parseTodoLines('id1 | Buy milk | open | grocery note | 2024-01-01 | shopping');
+    const result = parseTodoLines('id1\tBuy milk\topen\tgrocery note\t2024-01-01\tshopping');
     expect(result).toEqual([
       {
         id: 'id1',
@@ -34,7 +34,7 @@ describe('parseTodoLines', () => {
 
   test('parses multiple todos', () => {
     const result = parseTodoLines(
-      'id1 | Buy milk | open | note1 | 2024-01-01 | tag1, id2 | Task 2 | completed |  |  | tag2',
+      'id1\tBuy milk\topen\tnote1\t2024-01-01\ttag1\nid2\tTask 2\tcompleted\t\t\ttag2',
     );
     expect(result).toHaveLength(2);
     expect(result[0].id).toBe('id1');
@@ -45,7 +45,7 @@ describe('parseTodoLines', () => {
   });
 
   test('handles missing fields gracefully', () => {
-    const result = parseTodoLines('id1 | Buy milk | open');
+    const result = parseTodoLines('id1\tBuy milk\topen');
     expect(result[0]).toEqual({
       id: 'id1',
       name: 'Buy milk',
@@ -151,21 +151,21 @@ describe('parseProjectLines', () => {
   });
 
   test('parses projects without area', () => {
-    const result = parseProjectLines('pid1 | My Project | open | some notes', false);
+    const result = parseProjectLines('pid1\tMy Project\topen\tsome notes', false);
     expect(result).toEqual([
       { id: 'pid1', name: 'My Project', status: 'open', notes: 'some notes' },
     ]);
   });
 
   test('parses projects with area', () => {
-    const result = parseProjectLines('pid1 | My Project | open | notes | Area: Work', true);
+    const result = parseProjectLines('pid1\tMy Project\topen\tnotes\tWork', true);
     expect(result).toEqual([
       { id: 'pid1', name: 'My Project', status: 'open', notes: 'notes', area: 'Work' },
     ]);
   });
 
   test('parses projects with empty area', () => {
-    const result = parseProjectLines('pid1 | My Project | open | notes | Area: ', true);
+    const result = parseProjectLines('pid1\tMy Project\topen\tnotes\t', true);
     expect(result).toEqual([
       { id: 'pid1', name: 'My Project', status: 'open', notes: 'notes', area: '' },
     ]);

@@ -10,37 +10,48 @@ function decodeNotes(raw: string): string {
   }
 }
 
+/** One todo per line, fields separated by tabs — see parseProjectLines. */
 export function parseTodoLines(output: string): TodoItem[] {
   if (!output.trim()) return [];
-  return output.split(', ').map((line) => {
-    const parts = line.split(' | ');
-    return {
-      id: parts[0] || '',
-      name: parts[1] || '',
-      status: parts[2] || '',
-      notes: decodeNotes(parts[3] || ''),
-      dueDate: parts[4] || '',
-      tags: parts[5] || '',
-      project: parts[6] || '',
-    };
-  });
+  return output
+    .split('\n')
+    .filter((line) => line.trim())
+    .map((line) => {
+      const parts = line.split('\t');
+      return {
+        id: parts[0] || '',
+        name: parts[1] || '',
+        status: parts[2] || '',
+        notes: decodeNotes(parts[3] || ''),
+        dueDate: parts[4] || '',
+        tags: parts[5] || '',
+        project: parts[6] || '',
+      };
+    });
 }
 
+/**
+ * One project per line, fields separated by tabs. Records used to be joined by
+ * ", " — which shredded every project whose notes contained a comma.
+ */
 export function parseProjectLines(output: string, withArea: boolean): ProjectItem[] {
   if (!output.trim()) return [];
-  return output.split(', ').map((line) => {
-    const parts = line.split(' | ');
-    const item: ProjectItem = {
-      id: parts[0] || '',
-      name: parts[1] || '',
-      status: parts[2] || '',
-      notes: decodeNotes(parts[3] || ''),
-    };
-    if (withArea && parts[4]) {
-      item.area = parts[4].replace(/^Area:\s*/, '');
-    }
-    return item;
-  });
+  return output
+    .split('\n')
+    .filter((line) => line.trim())
+    .map((line) => {
+      const parts = line.split('\t');
+      const item: ProjectItem = {
+        id: parts[0] || '',
+        name: parts[1] || '',
+        status: parts[2] || '',
+        notes: decodeNotes(parts[3] || ''),
+      };
+      if (withArea) {
+        item.area = (parts[4] || '').replace(/^Area:\s*/, '');
+      }
+      return item;
+    });
 }
 
 export function parseSearchLines(output: string): SearchResultItem[] {
@@ -97,9 +108,17 @@ export function parseTodoColumns(output: string): TodoItem[] {
   return todos;
 }
 
+/**
+ * Tags and areas come back tab-separated: their names routinely contain commas,
+ * so ", " cannot be the separator.
+ */
 export function parseSimpleList(output: string): string[] {
   if (!output.trim()) return [];
-  return output.split(', ');
+  const separator = output.includes('\t') ? '\t' : ', ';
+  return output
+    .split(separator)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 export function filterTodosByStatus(

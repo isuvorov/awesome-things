@@ -59,10 +59,18 @@ export async function createTodo(args: CreateTodoArgs): Promise<ActionResult> {
     await execute(tellThings(areaCommand));
   }
 
-  if (args.project && args.list) {
-    const listName = capitalize(args.list);
-    const moveCommand = `move to do named ${quoteString(args.name)} to list ${quoteString(listName)}`;
-    await execute(tellThings(moveCommand));
+  // `move ... to list` pulls a todo OUT of its project, so for a todo that lives
+  // in a project the list is expressed as a schedule instead:
+  //   today    → scheduled for today, stays in the project
+  //   anytime  → an unscheduled project todo already shows up in Anytime
+  //   someday  → the only list move that keeps the project
+  if (args.project && args.list && args.list !== 'anytime') {
+    const ref = `to do id ${quoteString(todoId)}`;
+    const command =
+      args.list === 'today'
+        ? `schedule ${ref} for (current date)`
+        : `move ${ref} to list ${quoteString(capitalize(args.list))}`;
+    await execute(tellThings(command));
   }
 
   const suffix = args.project
@@ -76,8 +84,12 @@ export async function createTodo(args: CreateTodoArgs): Promise<ActionResult> {
 export async function listTodos(args: ListTodosArgs): Promise<ListTodosResult> {
   const listName = capitalize(args.list);
 
-  const listRef = `every to do of list ${quoteString(listName)}`;
+  // Every property is fetched in one bulk call against a bound list reference.
+  // Re-inlining `every to do of list "X"` inside the loop made it O(n) full-list
+  // scans — that is what turned a 40-item list into a 4-second call.
+  const listRef = `every to do of theList`;
   const script = tellThings(`
+set theList to list ${quoteString(listName)}
 set todoCount to count of ${listRef}
 if todoCount is 0 then return ""
 set allIds to id of ${listRef}
@@ -86,9 +98,14 @@ set allStatuses to status of ${listRef}
 set allNotes to notes of ${listRef}
 set allDueDates to due date of ${listRef}
 set allTags to tag names of ${listRef}
+set allProjects to {}
+try
+  set allProjects to project of ${listRef}
+end try
 set safeDates to {}
 set safeNotes to {}
 set safeProjects to {}
+set safeTags to {}
 repeat with i from 1 to todoCount
   set dd to item i of allDueDates
   if dd is missing value then
@@ -114,19 +131,21 @@ repeat with i from 1 to todoCount
   set np to text items of nn
   set AppleScript's text item delimiters to " "
   set end of safeNotes to np as string
-  set projName to ""
-  try
-    set projName to name of project of item i of ${listRef}
-  end try
-  set end of safeProjects to projName
-end repeat
-set safeTags to {}
-repeat with i from 1 to todoCount
   set tt to item i of allTags
   set AppleScript's text item delimiters to tab
   set tp to text items of tt
   set AppleScript's text item delimiters to " "
   set end of safeTags to tp as string
+  set projName to ""
+  if i is less than or equal to (count of allProjects) then
+    set p to item i of allProjects
+    if p is not missing value then
+      try
+        set projName to name of p
+      end try
+    end if
+  end if
+  set end of safeProjects to projName
 end repeat
 set tid to AppleScript's text item delimiters
 set AppleScript's text item delimiters to "\t"

@@ -160,12 +160,25 @@ describe('createTodo', () => {
     expect(executeCalls.length).toBe(1);
   });
 
-  test('creates todo in project and moves to list when both specified', async () => {
+  test('schedules a project todo for today instead of moving it out of the project', async () => {
     resetExecuteMulti('ID8', '');
     await createTodo({ name: 'Task', project: 'Proj', list: 'today' });
     expect(executeCalls).toHaveLength(2);
     expect(executeCalls[0]).toContain('at beginning of project "Proj"');
-    expect(executeCalls[1]).toContain('move to do named "Task" to list "Today"');
+    expect(executeCalls[1]).toContain('schedule to do id "ID8" for (current date)');
+    expect(executeCalls[1]).not.toContain('move');
+  });
+
+  test('leaves a project todo alone for anytime — it already shows up there', async () => {
+    resetExecute('ID8b');
+    await createTodo({ name: 'Task', project: 'Proj', list: 'anytime' });
+    expect(executeCalls).toHaveLength(1);
+  });
+
+  test('uses a list move for someday, the one that keeps the project', async () => {
+    resetExecuteMulti('ID8c', '');
+    await createTodo({ name: 'Task', project: 'Proj', list: 'someday' });
+    expect(executeCalls[1]).toContain('move to do id "ID8c" to list "Someday"');
   });
 
   test('does not move when project specified without list', async () => {
@@ -431,6 +444,42 @@ describe('updateProject', () => {
     expect(executeCalls[0]).toContain('set notes of theProject to ""');
   });
 
+  test('sets a due date', async () => {
+    resetExecute('UPD-P5');
+    await updateProject({ project_name: 'Proj', new_due_date: '2026-04-01' });
+    expect(executeCalls[0]).toContain('set due date of theProject to dueD');
+  });
+
+  test('clears a due date with none', async () => {
+    resetExecute('UPD-P6');
+    await updateProject({ project_name: 'Proj', new_due_date: 'none' });
+    expect(executeCalls[0]).toContain('set due date of theProject to missing value');
+  });
+
+  test('sets tags', async () => {
+    resetExecute('UPD-P7');
+    await updateProject({ project_name: 'Proj', new_tags: ['ai', 'work'] });
+    expect(executeCalls[0]).toContain('set tag names of theProject to "ai, work"');
+  });
+
+  test('clears tags with an empty array', async () => {
+    resetExecute('UPD-P8');
+    await updateProject({ project_name: 'Proj', new_tags: [] });
+    expect(executeCalls[0]).toContain('set tag names of theProject to ""');
+  });
+
+  test('moves the project to another area', async () => {
+    resetExecute('UPD-P9');
+    await updateProject({ project_name: 'Proj', new_area: 'Work' });
+    expect(executeCalls[0]).toContain('set area of theProject to area "Work"');
+  });
+
+  test('detaches the project from its area with none', async () => {
+    resetExecute('UPD-P10');
+    await updateProject({ project_name: 'Proj', new_area: 'none' });
+    expect(executeCalls[0]).toContain('set area of theProject to missing value');
+  });
+
   test('returns no-op message when no updates specified', async () => {
     resetExecute();
     const result = await updateProject({ project_name: 'Proj' });
@@ -447,9 +496,7 @@ describe('listProjects', () => {
   });
 
   test('parses projects with area and id', async () => {
-    resetExecute(
-      'pid1 | Proj1 | open | notes1 | Area: Work, pid2 | Proj2 | completed | notes2 | Area: Home',
-    );
+    resetExecute('pid1\tProj1\topen\tnotes1\tWork\npid2\tProj2\tcompleted\tnotes2\tHome');
     const result = await listProjects({});
     expect(result.projects).toHaveLength(2);
     expect(result.projects[0]).toEqual({
@@ -461,24 +508,32 @@ describe('listProjects', () => {
     });
   });
 
-  test('parses projects without area when filtered', async () => {
-    resetExecute('pid3 | Proj1 | open | notes1');
-    const result = await listProjects({ area: 'Work' });
-    expect(result.area).toBe('Work');
+  test('keeps a project whose notes contain commas in one piece', async () => {
+    resetExecute('pid1\tProj1\topen\tbuy milk, eggs, bread\tWork');
+    const result = await listProjects({});
     expect(result.projects).toHaveLength(1);
-    expect(result.projects[0]).toEqual({
-      id: 'pid3',
-      name: 'Proj1',
-      status: 'open',
-      notes: 'notes1',
-    });
+    expect(result.projects[0].notes).toBe('buy milk, eggs, bread');
   });
 
-  test('script references area when filtered', async () => {
+  test('filters by area in JS and drops the area field', async () => {
+    resetExecute('pid1\tProj1\topen\tnotes1\tWork\npid2\tProj2\topen\tnotes2\tHome');
+    const result = await listProjects({ area: 'Work' });
+    expect(result.area).toBe('Work');
+    expect(result.projects).toEqual([
+      { id: 'pid1', name: 'Proj1', status: 'open', notes: 'notes1' },
+    ]);
+  });
+
+  test('matches the area case-insensitively', async () => {
+    resetExecute('pid1\tProj1\topen\tnotes1\tWork');
+    expect((await listProjects({ area: 'work' })).projects).toHaveLength(1);
+  });
+
+  test('never asks Things3 for every project of an area', async () => {
     resetExecute('');
     await listProjects({ area: 'Work' });
-    expect(executeCalls[0]).toContain('every project of area "Work"');
-    expect(executeCalls[0]).toContain('set allIds to id of');
+    expect(executeCalls[0]).not.toContain('every project of area');
+    expect(executeCalls[0]).toContain('set allIds to id of every project');
   });
 });
 
@@ -491,7 +546,7 @@ describe('getProjectTodos', () => {
   });
 
   test('parses project todos with id', async () => {
-    resetExecute('tid1 | Task A | open | note | 2024-06-01 | tag1');
+    resetExecute('tid1\tTask A\topen\tnote\t2024-06-01\ttag1');
     const result = await getProjectTodos({ project_name: 'My Project' });
     expect(result.todos).toHaveLength(1);
     expect(result.todos[0]).toEqual({
@@ -506,7 +561,7 @@ describe('getProjectTodos', () => {
   });
 
   test('filters by status', async () => {
-    resetExecute('tid2 | A | open | | | , tid3 | B | completed | | | ');
+    resetExecute('tid2\tA\topen\t\t\t\ntid3\tB\tcompleted\t\t\t');
     const result = await getProjectTodos({ project_name: 'P', status: 'completed' });
     expect(result.todos).toHaveLength(1);
     expect(result.todos[0].name).toBe('B');
@@ -530,7 +585,7 @@ describe('listTags', () => {
   });
 
   test('parses tags', async () => {
-    resetExecute('work, personal, shopping');
+    resetExecute('work\tpersonal\tshopping');
     const result = await listTags();
     expect(result.tags).toEqual(['work', 'personal', 'shopping']);
   });
@@ -538,7 +593,8 @@ describe('listTags', () => {
   test('script asks for tag names', async () => {
     resetExecute('');
     await listTags();
-    expect(executeCalls[0]).toContain('return name of tags as string');
+    expect(executeCalls[0]).toContain('name of tags as string');
+    expect(executeCalls[0]).toContain('text item delimiters to tab');
   });
 });
 
@@ -550,7 +606,7 @@ describe('listAreas', () => {
   });
 
   test('parses areas', async () => {
-    resetExecute('Work, Personal');
+    resetExecute('Work\tPersonal');
     const result = await listAreas();
     expect(result.areas).toEqual(['Work', 'Personal']);
   });
@@ -558,7 +614,8 @@ describe('listAreas', () => {
   test('script asks for area names', async () => {
     resetExecute('');
     await listAreas();
-    expect(executeCalls[0]).toContain('return name of areas as string');
+    expect(executeCalls[0]).toContain('name of areas as string');
+    expect(executeCalls[0]).toContain('text item delimiters to tab');
   });
 });
 

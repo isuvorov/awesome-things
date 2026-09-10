@@ -1,3 +1,10 @@
+## [1.1.1](https://github.com/isuvorov/awesome-things/compare/v1.1.0...v1.1.1) (2026-09-10)
+
+
+### Bug Fixes
+
+* **things:** attach todos to projects and allow clearing due dates ([cf3e6d3](https://github.com/isuvorov/awesome-things/commit/cf3e6d303bad716a3654bae004ad93e50652d0a4))
+
 # [1.1.0](https://github.com/isuvorov/awesome-things/compare/v1.0.1...v1.1.0) (2026-09-10)
 
 

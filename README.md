@@ -139,6 +139,7 @@ things add "Buy milk"
 things add "Submit report" --notes "Q1" --due 2026-03-01 --tags work urgent --list today
 things add "Sand the stool" --when 2026-09-12          # Things' "When", not the deadline
 things add "Call the bank" --when tomorrow
+things add "Standup" --when 2026-09-12@11:00           # with a time = phone notification
 things add "Fix leak" --area Home
 things add "Plan sprint" --project "Q1 Planning"
 
@@ -154,7 +155,7 @@ things done "Buy milk"
 things update "Submit report" --new-name "Submit Q1 report"
 things update "Submit report" --new-due 2026-03-15
 things update "Submit report" --new-due none      # clear the deadline
-things update "Submit report" --new-when 2026-09-12       # YYYY-MM-DD | today | tomorrow | evening
+things update "Submit report" --new-when 2026-09-12       # YYYY-MM-DD[@HH:MM] | today | tomorrow | evening
 things update "Submit report" --new-when none            # clear the When date
 
 # Search
@@ -281,6 +282,7 @@ FRP_SERVER_ADDR=frp.example.com things server --tunnel=frp --domain myapp
 | `AWESOME_THINGS_TOKEN` | Bearer token for the HTTP/MCP API | random per start |
 | `AWESOME_THINGS_TUNNEL` | Tunnel provider (`localtunnel`, `ngrok`, `frp`) | — |
 | `AWESOME_THINGS_DOMAIN` | Tunnel domain / subdomain | — |
+| `AWESOME_THINGS_URL_TOKEN` | Things URL-scheme token — needed for `evening` and for reminder times (`--when 2026-09-12@11:00`). Things → Settings → General | — |
 | `NGROK_AUTHTOKEN` | ngrok auth token | — |
 | `FRP_SERVER_ADDR` | frp server address (required for frp) | — |
 | `FRP_SERVER_PORT` | frp server port | `7000` |

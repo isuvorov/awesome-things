@@ -196,7 +196,8 @@ yargs(hideBin(process.argv))
         .option('when', {
           type: 'string',
           alias: 'w',
-          describe: 'When it shows up: YYYY-MM-DD | today | tomorrow | evening | anytime | someday',
+          describe:
+            'When it shows up: YYYY-MM-DD[@HH:MM] | today | tomorrow | evening | anytime | someday',
         })
         .option('tags', { type: 'array', alias: 't', string: true, describe: 'Tags' })
         .option('list', { choices: TARGET_LIST_CHOICES, alias: 'l', describe: 'Target list' })
@@ -274,7 +275,8 @@ yargs(hideBin(process.argv))
         .option('new-tags', { type: 'array', string: true, describe: 'New tags' })
         .option('new-when', {
           type: 'string',
-          describe: "New When date (YYYY-MM-DD, today/tomorrow/evening/anytime/someday, or 'none')",
+          describe:
+            "New When date: YYYY-MM-DD[@HH:MM], today/tomorrow/evening/anytime/someday, or 'none'",
         }),
     (argv) =>
       run(

@@ -91,6 +91,7 @@ export const CreateTodoArgsSchema = z.object({
     .optional()
     .describe(
       'When the todo shows up: YYYY-MM-DD, or today/tomorrow/evening/anytime/someday. ' +
+        'Add a time for a phone notification: 2026-09-12@11:00 or today@14:00. ' +
         'This is Things\u2019 "When", not the deadline — use due_date for that',
     ),
   project: z.string().optional().describe('Project name to create the todo in'),
@@ -134,7 +135,8 @@ export const UpdateTodoArgsBaseSchema = z.object({
     .string()
     .optional()
     .describe(
-      "New \u201cWhen\u201d date: YYYY-MM-DD, today/tomorrow/evening/anytime/someday, or 'none' to clear",
+      'New \u201cWhen\u201d date: YYYY-MM-DD, today/tomorrow/evening/anytime/someday, ' +
+        "YYYY-MM-DD@HH:MM for a reminder, or 'none' to clear",
     ),
 });
 export const UpdateTodoArgsSchema = UpdateTodoArgsBaseSchema.refine(idOrName, idOrNameMsg);
@@ -255,7 +257,7 @@ export const toolSchemas = {
       when: {
         type: 'string',
         description:
-          'When the todo shows up: YYYY-MM-DD, or today/tomorrow/evening/anytime/someday. This is Things\u2019 "When", not the deadline',
+          'When the todo shows up: YYYY-MM-DD, or today/tomorrow/evening/anytime/someday. Add a time for a phone notification: 2026-09-12@11:00. This is Things\u2019 "When", not the deadline',
       },
       tags: {
         type: 'array',
@@ -321,7 +323,8 @@ export const toolSchemas = {
       new_when: {
         type: 'string',
         description:
-          "New \u201cWhen\u201d date: YYYY-MM-DD, today/tomorrow/evening/anytime/someday, or 'none' to clear",
+          'New \u201cWhen\u201d date: YYYY-MM-DD, today/tomorrow/evening/anytime/someday, ' +
+          "YYYY-MM-DD@HH:MM for a reminder, or 'none' to clear",
       },
     },
     required: [] as string[],

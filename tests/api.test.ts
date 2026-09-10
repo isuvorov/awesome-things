@@ -840,3 +840,53 @@ describe('when', () => {
     );
   });
 });
+
+describe('when with a reminder time', () => {
+  test('routes a dated reminder through the URL scheme', async () => {
+    process.env.AWESOME_THINGS_URL_TOKEN = 'url-token';
+    resetExecuteMulti('', '');
+    await updateTodo({ id: 'R1', new_when: '2026-09-12@11:00' });
+    const url = executeCalls[0];
+    expect(url).toContain('things:///update?');
+    expect(url).toContain('id=R1');
+    expect(url).toContain('when=2026-09-12%4011%3A00');
+    expect(url).not.toContain('schedule');
+  });
+
+  test('accepts today@HH:MM and tomorrow@HH:MM', async () => {
+    process.env.AWESOME_THINGS_URL_TOKEN = 'url-token';
+    resetExecuteMulti('', '');
+    await updateTodo({ id: 'R2', new_when: 'today@14:00' });
+    expect(executeCalls[0]).toContain('when=today%4014%3A00');
+  });
+
+  test('createTodo sets a reminder after creating the todo', async () => {
+    process.env.AWESOME_THINGS_URL_TOKEN = 'url-token';
+    resetExecuteMulti('R3', '');
+    await createTodo({ name: 'Task', when: '2026-09-12@09:30' });
+    expect(executeCalls[0]).toContain('make new to do');
+    expect(executeCalls[1]).toContain('when=2026-09-12%4009%3A30');
+  });
+
+  test('a plain date still goes through AppleScript, no token needed', async () => {
+    process.env.AWESOME_THINGS_URL_TOKEN = '';
+    resetExecuteMulti('', '');
+    await updateTodo({ id: 'R4', new_when: '2026-09-12' });
+    expect(executeCalls[0]).toContain('schedule to do id "R4" for whenD');
+  });
+
+  test('explains the missing token instead of failing silently', async () => {
+    process.env.AWESOME_THINGS_URL_TOKEN = '';
+    resetExecuteMulti('', '');
+    await expect(updateTodo({ id: 'R5', new_when: '2026-09-12@11:00' })).rejects.toThrow(
+      'AWESOME_THINGS_URL_TOKEN',
+    );
+  });
+
+  test('rejects an impossible time', async () => {
+    resetExecuteMulti('', '');
+    await expect(updateTodo({ id: 'R6', new_when: '2026-09-12@25:00' })).rejects.toThrow(
+      'Invalid when',
+    );
+  });
+});

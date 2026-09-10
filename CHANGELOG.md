@@ -1,3 +1,17 @@
+# [1.1.0](https://github.com/isuvorov/awesome-things/compare/v1.0.1...v1.1.0) (2026-09-10)
+
+
+### Bug Fixes
+
+* **applescript:** name the real cause when Things3 terminology is lost ([e7bdd1d](https://github.com/isuvorov/awesome-things/commit/e7bdd1d5a0e1aec7bf9850ed5ad4599939e25f44))
+* **things:** stop mangling lists, tags and project todos ([dff78e8](https://github.com/isuvorov/awesome-things/commit/dff78e8d793210da964a02bf7f516dd20cf37f81))
+
+
+### Features
+
+* **server:** browser sign-in, favicon, masked tokens, env tunnel ([c41ecc6](https://github.com/isuvorov/awesome-things/commit/c41ecc6c9663967afe9f904d0b25502437212deb))
+* **types:** case-insensitive enums, richer update_project args ([b4f95f3](https://github.com/isuvorov/awesome-things/commit/b4f95f33f8e1683844bc52145ce3f8788a3726dc))
+
 ## [1.0.1](https://github.com/isuvorov/awesome-things/compare/v1.0.0...v1.0.1) (2026-09-10)
 
 

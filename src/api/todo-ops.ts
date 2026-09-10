@@ -19,6 +19,7 @@ import {
   todoLabel,
   todoRef,
 } from '../utils/applescript.js';
+import { applyWhen } from './when.js';
 
 /**
  * Things3 refuses `set due date to missing value` with -1700 ("Can't make missing
@@ -57,7 +58,9 @@ export async function createTodo(args: CreateTodoArgs): Promise<ActionResult> {
   // `make new to do at beginning of project "X"` reports success but silently
   // leaves the todo in the Inbox. Create it, then attach it with the same
   // `set project of` that moveTodoToProject uses — that one actually works.
-  const listName = args.project ? 'Inbox' : args.list ? capitalize(args.list) : 'Inbox';
+  // `evening` is not a real container — it is set afterwards, like any other "When".
+  const containerList = args.list && args.list !== 'evening' ? capitalize(args.list) : 'Inbox';
+  const listName = args.project ? 'Inbox' : containerList;
   const lines = [
     ...preamble,
     `set newTodo to make new to do in list ${quoteString(listName)} with properties ${propertiesStr}`,
@@ -86,6 +89,14 @@ export async function createTodo(args: CreateTodoArgs): Promise<ActionResult> {
         ? `schedule ${ref} for (current date)`
         : `move ${ref} to list ${quoteString(capitalize(args.list))}`;
     await execute(tellThings(command));
+  }
+
+  if (args.list === 'evening' && !args.project) {
+    await applyWhen(`to do id ${quoteString(todoId)}`, todoId, 'evening');
+  }
+
+  if (args.when) {
+    await applyWhen(`to do id ${quoteString(todoId)}`, todoId, args.when);
   }
 
   const suffix = args.project
@@ -215,13 +226,21 @@ export async function updateTodo(args: UpdateTodoArgs): Promise<ActionResult> {
     commands.push(`set tag names of ${ref} to ${quoteString(args.new_tags.join(', '))}`);
   }
 
-  if (commands.length === 0) {
+  if (commands.length === 0 && args.new_when === undefined) {
     return { message: `No updates specified for todo: ${label}` };
   }
 
-  commands.push(`return id of ${ref}`);
-  const script = tellThings(commands.join('\n'));
-  const todoId = await execute(script);
+  let todoId = args.id;
+  if (commands.length > 0) {
+    commands.push(`return id of ${ref}`);
+    todoId = await execute(tellThings(commands.join('\n')));
+  }
+
+  if (args.new_when !== undefined) {
+    await applyWhen(ref, todoId, args.new_when);
+    todoId = todoId || (await execute(tellThings(`return id of ${ref}`)));
+  }
+
   return { message: `Updated todo: ${label}`, id: todoId };
 }
 

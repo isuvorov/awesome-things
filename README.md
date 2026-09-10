@@ -137,6 +137,8 @@ Global flags: `--json` for machine-readable output, `--format pretty|table|plain
 # Create a todo
 things add "Buy milk"
 things add "Submit report" --notes "Q1" --due 2026-03-01 --tags work urgent --list today
+things add "Sand the stool" --when 2026-09-12          # Things' "When", not the deadline
+things add "Call the bank" --when tomorrow
 things add "Fix leak" --area Home
 things add "Plan sprint" --project "Q1 Planning"
 
@@ -151,7 +153,9 @@ things done "Buy milk"
 # Update a todo
 things update "Submit report" --new-name "Submit Q1 report"
 things update "Submit report" --new-due 2026-03-15
-things update "Submit report" --new-due none      # clear the due date
+things update "Submit report" --new-due none      # clear the deadline
+things update "Submit report" --new-when 2026-09-12       # YYYY-MM-DD | today | tomorrow | evening
+things update "Submit report" --new-when none            # clear the When date
 
 # Search
 things search "report"
@@ -342,10 +346,10 @@ await moveTodoToProject({ todo_name: 'Submit report', project_name: 'Q1 Planning
 <details>
 <summary><strong>All 17 functions</strong></summary>
 
-- `createTodo({ name, notes?, due_date?, tags?, list?, project?, area? })` — create a todo
+- `createTodo({ name, notes?, due_date?, when?, tags?, list?, project?, area? })` — create a todo
 - `listTodos({ list, status? })` — list todos
 - `completeTodo({ name?, id? })` — complete a todo
-- `updateTodo({ name?, id?, new_name?, new_notes?, new_due_date?, new_tags? })` — update a todo
+- `updateTodo({ name?, id?, new_name?, new_notes?, new_due_date?, new_when?, new_tags? })` — update a todo
 - `searchTodos({ query })` — search todos by name
 - `createProject({ name, notes?, area? })` — create a project
 - `updateProject({ project_name, new_name?, new_notes?, new_due_date?, new_tags?, new_area? })` — update a project

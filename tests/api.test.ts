@@ -769,3 +769,74 @@ describe('clearing a due date', () => {
     expect(script).toContain('delete due date of theProject');
   });
 });
+
+// ── "When" (schedule), which is not the deadline ────────────────
+
+describe('when', () => {
+  test('createTodo schedules an ISO date after creating the todo', async () => {
+    resetExecuteMulti('W1', '');
+    await createTodo({ name: 'Task', when: '2026-09-12' });
+    expect(executeCalls).toHaveLength(2);
+    expect(executeCalls[1]).toContain('set year of whenD to 2026');
+    expect(executeCalls[1]).toContain('schedule to do id "W1" for whenD');
+  });
+
+  test('createTodo understands today and tomorrow', async () => {
+    resetExecuteMulti('W2', '');
+    await createTodo({ name: 'Task', when: 'today' });
+    expect(executeCalls[1]).toContain('schedule to do id "W2" for (current date)');
+
+    resetExecuteMulti('W3', '');
+    await createTodo({ name: 'Task', when: 'tomorrow' });
+    expect(executeCalls[1]).toContain('schedule to do id "W3" for ((current date) + 1 * days)');
+  });
+
+  test('createTodo keeps when and due_date apart', async () => {
+    resetExecuteMulti('W4', '');
+    await createTodo({ name: 'Task', due_date: '2026-09-30', when: '2026-09-12' });
+    expect(executeCalls[0]).toContain('due date:dueD');
+    expect(executeCalls[0]).toContain('set day of dueD to 30');
+    expect(executeCalls[1]).toContain('set day of whenD to 12');
+  });
+
+  test('createTodo routes list=evening through the URL scheme, not a container', async () => {
+    process.env.AWESOME_THINGS_URL_TOKEN = 'url-token';
+    resetExecuteMulti('W5', '', '');
+    await createTodo({ name: 'Task', list: 'evening' });
+    expect(executeCalls[0]).toContain('in list "Inbox"');
+    expect(executeCalls[1]).toContain('move to do id "W5" to list "Today"');
+    expect(executeCalls[2]).toContain('when=evening');
+  });
+
+  test('updateTodo sets a new when', async () => {
+    resetExecuteMulti('', '');
+    await updateTodo({ id: 'W6', new_when: '2026-09-12' });
+    expect(executeCalls[0]).toContain('schedule to do id "W6" for whenD');
+  });
+
+  test('updateTodo clears the when by falling back to Anytime', async () => {
+    resetExecuteMulti('', '');
+    await updateTodo({ id: 'W7', new_when: 'none' });
+    expect(executeCalls[0]).toContain('move to do id "W7" to list "Anytime"');
+  });
+
+  test('updateTodo combines a property change with a new when', async () => {
+    resetExecuteMulti('W8', '');
+    await updateTodo({ id: 'W8', new_name: 'Renamed', new_when: 'someday' });
+    expect(executeCalls[0]).toContain('set name of to do id "W8" to "Renamed"');
+    expect(executeCalls[1]).toContain('move to do id "W8" to list "Someday"');
+  });
+
+  test('rejects a when that is neither a date nor an alias', async () => {
+    resetExecuteMulti('', '');
+    await expect(updateTodo({ id: 'W9', new_when: 'saturday' })).rejects.toThrow('Invalid when');
+  });
+
+  test('asks for the URL token only when evening is requested', async () => {
+    process.env.AWESOME_THINGS_URL_TOKEN = '';
+    resetExecuteMulti('', '');
+    await expect(updateTodo({ id: 'W10', new_when: 'evening' })).rejects.toThrow(
+      'AWESOME_THINGS_URL_TOKEN',
+    );
+  });
+});

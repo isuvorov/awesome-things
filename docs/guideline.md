@@ -40,6 +40,7 @@ src/
 ├── types.ts              # Zod schemas + inferred types
 ├── api/                  # Things3 operations (AppleScript)
 │   ├── todo-ops.ts       # createTodo, listTodos, completeTodo, updateTodo, searchTodos
+│   ├── when.ts           # Things' "When" field: schedule / evening / clear
 │   ├── project-ops.ts    # createProject, listProjects, getProjectTodos, updateProject
 │   ├── list-ops.ts       # listTags, listAreas
 │   └── move-ops.ts       # moveTodo, moveTodoToProject, moveTodoToArea, moveProjectToArea, removeTodoFromProject, removeProjectFromArea
@@ -127,7 +128,7 @@ bun run release            # Build + test + semantic-release + npm publish
 ## Architecture
 
 ### AppleScript Layer (`applescript.ts`)
-- `execute(script)` — runs `osascript` via `Bun.spawn`
+- `execute(script)` — runs `osascript` via `node:child_process` (the published bin runs on Node)
 - `tellThings(command)` — wraps command in Things3 tell block
 - `quoteString(s)` — escapes string for AppleScript
 - `buildProperties(props)` — builds property list syntax

@@ -18,7 +18,7 @@ import { bold, cyan, dim, green, yellow } from './server/logger.js';
 import { type FormatStyle, type Formatters, getFormatters } from './tools/formatters.js';
 
 const LIST_CHOICES = ['inbox', 'today', 'anytime', 'upcoming', 'someday', 'logbook'] as const;
-const TARGET_LIST_CHOICES = ['inbox', 'today', 'anytime', 'someday'] as const;
+const TARGET_LIST_CHOICES = ['inbox', 'today', 'evening', 'anytime', 'someday'] as const;
 const MOVE_DEST_CHOICES = ['inbox', 'today', 'evening', 'anytime', 'upcoming', 'someday'] as const;
 const STATUS_CHOICES = ['open', 'completed', 'all'] as const;
 
@@ -192,7 +192,12 @@ yargs(hideBin(process.argv))
       y
         .positional('name', { type: 'string', demandOption: true, describe: 'Todo name' })
         .option('notes', { type: 'string', alias: 'n', describe: 'Notes' })
-        .option('due', { type: 'string', alias: 'd', describe: 'Due date (YYYY-MM-DD)' })
+        .option('due', { type: 'string', alias: 'd', describe: 'Deadline (YYYY-MM-DD)' })
+        .option('when', {
+          type: 'string',
+          alias: 'w',
+          describe: 'When it shows up: YYYY-MM-DD | today | tomorrow | evening | anytime | someday',
+        })
         .option('tags', { type: 'array', alias: 't', string: true, describe: 'Tags' })
         .option('list', { choices: TARGET_LIST_CHOICES, alias: 'l', describe: 'Target list' })
         .option('project', {
@@ -213,6 +218,7 @@ yargs(hideBin(process.argv))
             notes: argv.notes,
             due_date: argv.due,
             tags: argv.tags as string[] | undefined,
+            when: argv.when as string | undefined,
             list: argv.list,
             project: argv.project,
             area: argv.area,
@@ -265,7 +271,11 @@ yargs(hideBin(process.argv))
           type: 'string',
           describe: "New due date (YYYY-MM-DD or 'none')",
         })
-        .option('new-tags', { type: 'array', string: true, describe: 'New tags' }),
+        .option('new-tags', { type: 'array', string: true, describe: 'New tags' })
+        .option('new-when', {
+          type: 'string',
+          describe: "New When date (YYYY-MM-DD, today/tomorrow/evening/anytime/someday, or 'none')",
+        }),
     (argv) =>
       run(
         () =>
@@ -276,6 +286,7 @@ yargs(hideBin(process.argv))
             new_notes: argv.newNotes as string | undefined,
             new_due_date: argv.newDue as string | undefined,
             new_tags: argv.newTags as string[] | undefined,
+            new_when: argv.newWhen as string | undefined,
           }),
         fmt.formatAction,
       ),

@@ -83,9 +83,16 @@ export const CreateTodoArgsSchema = z.object({
   notes: z.string().optional().describe('Additional notes for the todo'),
   due_date: z.string().optional().describe('Due date in YYYY-MM-DD format'),
   tags: z.array(z.string()).optional().describe('List of tag names to apply'),
-  list: lowerEnum(['inbox', 'today', 'anytime', 'someday'])
+  list: lowerEnum(['inbox', 'today', 'evening', 'anytime', 'someday'])
     .optional()
     .describe('Target list (defaults to inbox). With project: also moves todo to this list'),
+  when: z
+    .string()
+    .optional()
+    .describe(
+      'When the todo shows up: YYYY-MM-DD, or today/tomorrow/evening/anytime/someday. ' +
+        'This is Things\u2019 "When", not the deadline — use due_date for that',
+    ),
   project: z.string().optional().describe('Project name to create the todo in'),
   area: z.string().optional().describe('Area name to place the todo in'),
 });
@@ -123,6 +130,12 @@ export const UpdateTodoArgsBaseSchema = z.object({
     .optional()
     .describe("New due date (YYYY-MM-DD format, or 'none' to clear)"),
   new_tags: z.array(z.string()).optional().describe('New list of tag names'),
+  new_when: z
+    .string()
+    .optional()
+    .describe(
+      "New \u201cWhen\u201d date: YYYY-MM-DD, today/tomorrow/evening/anytime/someday, or 'none' to clear",
+    ),
 });
 export const UpdateTodoArgsSchema = UpdateTodoArgsBaseSchema.refine(idOrName, idOrNameMsg);
 export type UpdateTodoArgs = z.infer<typeof UpdateTodoArgsSchema>;
@@ -238,7 +251,12 @@ export const toolSchemas = {
     properties: {
       name: { type: 'string', description: 'Name of the todo' },
       notes: { type: 'string', description: 'Additional notes for the todo' },
-      due_date: { type: 'string', description: 'Due date in YYYY-MM-DD format' },
+      due_date: { type: 'string', description: 'Deadline in YYYY-MM-DD format (shown in red)' },
+      when: {
+        type: 'string',
+        description:
+          'When the todo shows up: YYYY-MM-DD, or today/tomorrow/evening/anytime/someday. This is Things\u2019 "When", not the deadline',
+      },
       tags: {
         type: 'array',
         items: { type: 'string' },
@@ -246,7 +264,7 @@ export const toolSchemas = {
       },
       list: {
         type: 'string',
-        enum: ['inbox', 'today', 'anytime', 'someday'],
+        enum: ['inbox', 'today', 'evening', 'anytime', 'someday'],
         description: 'Target list (defaults to inbox). With project: also moves todo to this list',
       },
       project: {
@@ -299,6 +317,11 @@ export const toolSchemas = {
         type: 'array',
         items: { type: 'string' },
         description: 'New list of tag names',
+      },
+      new_when: {
+        type: 'string',
+        description:
+          "New \u201cWhen\u201d date: YYYY-MM-DD, today/tomorrow/evening/anytime/someday, or 'none' to clear",
       },
     },
     required: [] as string[],

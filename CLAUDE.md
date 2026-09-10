@@ -41,6 +41,7 @@ src/
 ├── types.ts              # Zod schemas + inferred types
 ├── api/                  # Things3 operations (AppleScript)
 │   ├── todo-ops.ts       # Todo operations (create, list, complete, update, search)
+│   ├── when.ts           # Things' "When" field (schedule) — not the deadline
 │   ├── project-ops.ts    # Project operations (create, list, get todos)
 │   ├── list-ops.ts       # Tags and areas listing
 │   └── move-ops.ts       # Move and remove operations

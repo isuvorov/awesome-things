@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/isuvorov/awesome-things/compare/v1.0.0...v1.0.1) (2026-09-10)
+
+
+### Bug Fixes
+
+* exec spawnOsascript ([c714521](https://github.com/isuvorov/awesome-things/commit/c7145212a1e74cd141502b40c923bdbeed074a9a))
+
 # 1.0.0 (2026-09-10)
 
 

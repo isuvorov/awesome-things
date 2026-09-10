@@ -41,6 +41,9 @@ jobs:
       - name: Test
         run: bun run test
 
+      - name: Ensure npm supports OIDC trusted publishing
+        run: npm i -g npm@latest
+
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

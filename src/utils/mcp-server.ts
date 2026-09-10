@@ -10,6 +10,7 @@ import {
 } from '../api/move-ops.js';
 import { createProject, getProjectTodos, listProjects } from '../api/project-ops.js';
 import { completeTodo, createTodo, listTodos, searchTodos, updateTodo } from '../api/todo-ops.js';
+import { appName, appVersion } from '../config.js';
 import {
   CompleteTodoArgsBaseSchema,
   CreateProjectArgsSchema,
@@ -51,8 +52,8 @@ function mcpHandler(fn: (args: any) => Promise<any>) {
 
 export function createMcpServer(): McpServer {
   const server = new McpServer({
-    name: 'awesome-things',
-    version: '1.0.0',
+    name: appName,
+    version: appVersion,
   });
 
   // ── Todo Operations ─────────────────────────────────────────────

@@ -5,6 +5,7 @@ const packageJsonPath = resolve(import.meta.dirname, '../package.json');
 const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
 
 export const appVersion: string = packageJson.version;
+export const appDescription: string = packageJson.description ?? '';
 export const appName = 'awesome-things';
 export const mcpName = 'things3';
 export const defaultPort =

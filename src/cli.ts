@@ -10,9 +10,10 @@ import {
   removeProjectFromArea,
   removeTodoFromProject,
 } from './api/move-ops.js';
-import { createProject, getProjectTodos, listProjects } from './api/project-ops.js';
+import { createProject, getProjectTodos, listProjects, updateProject } from './api/project-ops.js';
 import { completeTodo, createTodo, listTodos, searchTodos, updateTodo } from './api/todo-ops.js';
 import { appName, appVersion } from './config.js';
+import { errorMessage } from './server/errors.js';
 import { bold, cyan, dim, green, yellow } from './server/logger.js';
 import { type FormatStyle, type Formatters, getFormatters } from './tools/formatters.js';
 
@@ -32,8 +33,8 @@ async function run(fn: () => Promise<any>, format: (r: any) => string) {
     } else {
       console.log(format(result));
     }
-  } catch (err: any) {
-    console.error('Error:', err.message || err);
+  } catch (err) {
+    console.error('Error:', errorMessage(err));
     process.exit(1);
   }
 }
@@ -99,6 +100,18 @@ yargs(hideBin(process.argv))
     console.error(`\x1b[31m${msg}\x1b[0m`);
     process.exit(1);
   })
+
+  // ── Info ────────────────────────────────────────────────────────
+
+  .command(
+    'info',
+    'Show package, installation and environment info',
+    () => {},
+    async () => {
+      const { collectInfo, formatInfo } = await import('./tools/info.js');
+      await run(async () => collectInfo(), formatInfo);
+    },
+  )
 
   // ── MCP server ──────────────────────────────────────────────────
 
@@ -301,6 +314,29 @@ yargs(hideBin(process.argv))
                   name: argv.name!,
                   notes: argv.notes,
                   area: argv.area,
+                }),
+              fmt.formatAction,
+            ),
+        )
+        .command(
+          'update <name>',
+          'Update a project',
+          (y) =>
+            y
+              .positional('name', {
+                type: 'string',
+                demandOption: true,
+                describe: 'Current project name',
+              })
+              .option('new-name', { type: 'string', describe: 'New name' })
+              .option('new-notes', { type: 'string', describe: 'New notes' }),
+          (argv) =>
+            run(
+              () =>
+                updateProject({
+                  project_name: argv.name!,
+                  new_name: argv.newName as string | undefined,
+                  new_notes: argv.newNotes as string | undefined,
                 }),
               fmt.formatAction,
             ),

@@ -1,4 +1,11 @@
 import { appName, appVersion } from '../config.js';
+import { formatError } from './errors.js';
+
+// The request box repaints itself with cursor moves — only usable on a real TTY.
+const isTty = Boolean(process.stdout.isTTY);
+
+/** True when stdout is a terminal: spinners and cursor tricks are safe. */
+export const isInteractive = isTty;
 
 // ── ANSI helpers ──────────────────────────────────────────────────
 export const bold = (s: string) => `\x1b[1m${s}\x1b[22m`;
@@ -122,12 +129,23 @@ class RequestBox {
     }
   }
 
-  private drawInitial() {
-    // Erase config lines by moving up and overwriting
-    if (this.eraseLines > 0) {
-      process.stdout.write(`\x1b[${this.eraseLines}A`);
+  /** Print arbitrary lines (errors, warnings) above the box without breaking its layout. */
+  printAbove(lines: string[]) {
+    if (!this.boxDrawn) {
+      for (const line of lines) process.stdout.write(`${line}\n`);
+      return;
     }
-    // Draw box frame
+    const boxHeight = BOX_ROWS + 2; // borders included
+    // Cursor sits right below the box: go up, wipe it, print, then redraw it.
+    process.stdout.write(`\x1b[${boxHeight}A`);
+    for (let i = 0; i < boxHeight; i++) process.stdout.write('\x1b[2K\n');
+    process.stdout.write(`\x1b[${boxHeight}A`);
+    for (const line of lines) process.stdout.write(`${line}\x1b[K\n`);
+    this.drawFrame();
+    this.redraw();
+  }
+
+  private drawFrame() {
     const label = '── Requests ';
     const topFill = '─'.repeat(this.innerW + 2 - label.length);
     process.stdout.write(`  ${dim(`┌${label}${topFill}┐`)}\n`);
@@ -135,6 +153,14 @@ class RequestBox {
       process.stdout.write(`  ${dim('│')} ${' '.repeat(this.innerW)} ${dim('│')}\n`);
     }
     process.stdout.write(`  ${dim(`└${'─'.repeat(this.innerW + 2)}┘`)}\n`);
+  }
+
+  private drawInitial() {
+    // Erase config lines by moving up and overwriting
+    if (this.eraseLines > 0) {
+      process.stdout.write(`\x1b[${this.eraseLines}A`);
+    }
+    this.drawFrame();
     // Clear any leftover config lines below the box
     const leftover = this.eraseLines - (BOX_ROWS + 2);
     for (let i = 0; i < leftover; i++) {
@@ -169,7 +195,36 @@ export function logRequest(
   durationMs: number,
   extra?: LogExtra,
 ) {
-  requestBox?.log(method, pathname, status, durationMs, extra);
+  if (requestBox) {
+    requestBox.log(method, pathname, status, durationMs, extra);
+    return;
+  }
+  if (!isTty) {
+    // Piped to a file / systemd / pm2: plain lines, no ANSI, no cursor tricks.
+    console.log(stripAnsi(formatRequestLine(method, pathname, status, durationMs, 80, extra)));
+  }
+}
+
+/**
+ * Log an error without ever throwing from the logger itself and without
+ * corrupting the request box. Errors are what the user came here to read.
+ */
+export function logError(label: string, err: unknown) {
+  try {
+    const lines = [
+      `  ${red('✗')} ${bold(label)}`,
+      ...formatError(err)
+        .split('\n')
+        .map((line) => `    ${dim(line)}`),
+    ];
+    if (requestBox && isTty) {
+      requestBox.printAbove(lines);
+      return;
+    }
+    for (const line of lines) console.error(isTty ? line : stripAnsi(line));
+  } catch {
+    console.error(`${label}:`, err);
+  }
 }
 
 function printConfig(label: string, config: object): number {
@@ -275,5 +330,5 @@ export function printStartupBanner(opts: {
     mcpServers: { things3: { command: `npx -y ${appName} mcp` } },
   });
 
-  requestBox = new RequestBox(configLines);
+  requestBox = isTty ? new RequestBox(configLines) : null;
 }

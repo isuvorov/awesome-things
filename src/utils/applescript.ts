@@ -74,6 +74,16 @@ export async function execute(script: string): Promise<string> {
           `Security → Automation. Raw error: ${detail}`,
       );
     }
+    // osascript sometimes exits non-zero with nothing on stderr — an empty
+    // "AppleScript error (code 1): " tells the caller nothing at all.
+    if (!detail) {
+      const output = stdout.trim();
+      throw new Error(
+        `AppleScript failed with exit code ${exitCode} and no error text` +
+          `${output ? ` (output: ${output})` : ''}. Things3 rejected the command; ` +
+          'run with DEBUG=applescript to see the script that was sent.',
+      );
+    }
     throw new Error(`AppleScript error (code ${exitCode}): ${detail}`);
   }
 

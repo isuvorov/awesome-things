@@ -23,16 +23,20 @@ export async function createProject(args: CreateProjectArgs): Promise<ActionResu
     props.push(['notes', quoteString(args.notes)]);
   }
 
+  const propertiesStr = buildProperties(props);
+  const commands = [`set newProj to make new project with properties ${propertiesStr}`];
+
+  // `area` inside `with properties` makes the whole `make new project` fail —
+  // createTodo has always set the area as a separate step, and that one works.
   if (args.area) {
-    props.push(['area', `area ${quoteString(args.area)}`]);
+    commands.push(`set area of newProj to area ${quoteString(args.area)}`);
   }
 
-  const propertiesStr = buildProperties(props);
-  const command = `set newProj to make new project with properties ${propertiesStr}\nreturn id of newProj`;
-  const script = tellThings(command);
+  commands.push('return id of newProj');
 
-  const projId = await execute(script);
-  return { message: `Created project: ${args.name}`, id: projId };
+  const projId = await execute(tellThings(commands.join('\n')));
+  const suffix = args.area ? ` in area "${args.area}"` : '';
+  return { message: `Created project: ${args.name}${suffix}`, id: projId };
 }
 
 export async function updateProject(args: UpdateProjectArgs): Promise<ActionResult> {

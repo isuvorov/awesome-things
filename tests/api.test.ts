@@ -405,10 +405,19 @@ describe('createProject', () => {
     expect(executeCalls[0]).toContain('notes:"My notes"');
   });
 
-  test('creates project with area', async () => {
+  test('sets the area as a separate step, not inside with properties', async () => {
+    resetExecute('PID-AREA');
+    const result = await createProject({ name: 'Proj', area: 'Work' });
+    const script = executeCalls[0];
+    expect(script).not.toContain('area:area');
+    expect(script).toContain('set area of newProj to area "Work"');
+    expect(result.message).toBe('Created project: Proj in area "Work"');
+  });
+
+  test('keeps notes with newlines in one script', async () => {
     resetExecute('PROJ-ID3');
-    await createProject({ name: 'Proj', area: 'Work' });
-    expect(executeCalls[0]).toContain('area:area "Work"');
+    await createProject({ name: 'Proj', notes: 'line one\n\nline two' });
+    expect(executeCalls[0]).toContain('notes:"line one\n\nline two"');
   });
 });
 

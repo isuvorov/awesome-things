@@ -1,7 +1,7 @@
 {
   "type": "module",
   "name": "awesome-things",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Awesome swiss knife for Things3 – MCP server for AI, CLI, HTTP API, JS/TS API and Web",
   "author": "Igor Suvorov <hi@isuvorov.com> (https://github.com/isuvorov)",
   "private": false,

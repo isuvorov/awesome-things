@@ -1,3 +1,10 @@
+## [1.2.1](https://github.com/isuvorov/awesome-things/compare/v1.2.0...v1.2.1) (2026-09-11)
+
+
+### Bug Fixes
+
+* **projects:** set the area after creating the project, not inside properties ([374a0dc](https://github.com/isuvorov/awesome-things/commit/374a0dc52f219f5c84871f32d7aa6806744d3460))
+
 # [1.2.0](https://github.com/isuvorov/awesome-things/compare/v1.1.1...v1.2.0) (2026-09-10)
 
 

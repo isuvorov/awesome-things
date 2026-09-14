@@ -12,10 +12,11 @@ mock.restore();
 mock.module('../src/utils/applescript.js', () => ({
   execute: mock(async (script: string) => {
     executeCalls.push(script);
-    if (executeResults.length > 0) {
-      return executeResults[executeCallIndex++] || '';
-    }
-    return executeResult;
+    const value =
+      executeResults.length > 0 ? executeResults[executeCallIndex++] || '' : executeResult;
+    // Sentinel for the batch tests: the real execute() throws on an unknown id.
+    if (value.startsWith('__THROW__')) throw new Error(value.slice('__THROW__'.length));
+    return value;
   }),
   tellThings: (command: string) => `tell application "Things3"\n${command}\nend tell`,
   quoteString: (s: string) => {
@@ -54,6 +55,7 @@ mock.module('../src/utils/applescript.js', () => ({
   },
 }));
 
+import { getAreaTodos } from '../src/api/area-ops.js';
 import { listAreas, listTags } from '../src/api/list-ops.js';
 import {
   moveProjectToArea,
@@ -65,13 +67,16 @@ import {
 } from '../src/api/move-ops.js';
 import {
   createProject,
+  deleteProject,
   getProjectTodos,
   listProjects,
   updateProject,
 } from '../src/api/project-ops.js';
 import {
+  cancelTodo,
   completeTodo,
   createTodo,
+  deleteTodo,
   listTodos,
   searchTodos,
   updateTodo,
@@ -896,6 +901,239 @@ describe('when with a reminder time', () => {
     resetExecuteMulti('', '');
     await expect(updateTodo({ id: 'R6', new_when: '2026-09-12@25:00' })).rejects.toThrow(
       'Invalid when',
+    );
+  });
+});
+
+// ── delete / cancel ─────────────────────────────────────────────
+
+describe('cancelTodo', () => {
+  test('sets the canceled status, not completed', async () => {
+    resetExecute('C1');
+    const result = await cancelTodo({ id: 'C1' });
+    expect(executeCalls[0]).toContain('set theTodo to to do id "C1"');
+    expect(executeCalls[0]).toContain('set status of theTodo to canceled');
+    expect(executeCalls[0]).not.toContain('completed');
+    expect(result.message).toBe('Cancelled todo: id:C1');
+    expect(result.id).toBe('C1');
+  });
+
+  test('works by name', async () => {
+    resetExecute('C2');
+    const result = await cancelTodo({ name: 'Buy milk' });
+    expect(executeCalls[0]).toContain('to do named "Buy milk"');
+    expect(result.message).toBe('Cancelled todo: "Buy milk"');
+  });
+});
+
+describe('deleteTodo', () => {
+  test('moves the todo to the Trash instead of completing it', async () => {
+    resetExecute('D1');
+    const result = await deleteTodo({ id: 'D1' });
+    expect(executeCalls[0]).toContain('move theTodo to list "Trash"');
+    expect(executeCalls[0]).not.toContain('set status');
+    expect(result.message).toBe('Deleted todo id:D1 (moved to Trash)');
+    expect(result.id).toBe('D1');
+  });
+
+  test('reads the id before the move — afterwards the reference is gone', async () => {
+    resetExecute('D2');
+    await deleteTodo({ name: 'Oops' });
+    const script = executeCalls[0];
+    expect(script.indexOf('set theId to id of theTodo')).toBeLessThan(
+      script.indexOf('move theTodo to list "Trash"'),
+    );
+    expect(script).toContain('return theId');
+  });
+
+  test('falls back to delete when the Trash move fails', async () => {
+    resetExecute('D3');
+    await deleteTodo({ id: 'D3' });
+    expect(executeCalls[0]).toContain('on error');
+    expect(executeCalls[0]).toContain('delete theTodo');
+  });
+});
+
+describe('deleteProject', () => {
+  test('moves the project to the Trash', async () => {
+    resetExecute('P9');
+    const result = await deleteProject({ project_name: 'Old plan' });
+    expect(executeCalls[0]).toContain('set theProject to project "Old plan"');
+    expect(executeCalls[0]).toContain('move theProject to list "Trash"');
+    expect(result.message).toBe('Deleted project "Old plan" (moved to Trash)');
+    expect(result.id).toBe('P9');
+  });
+
+  test('targets by id when one is given — two projects can share a name', async () => {
+    resetExecute('P10');
+    const result = await deleteProject({ id: 'P10' });
+    expect(executeCalls[0]).toContain('set theProject to project id "P10"');
+    expect(result.message).toBe('Deleted project id:P10 (moved to Trash)');
+  });
+
+  test('refuses to run without a target', async () => {
+    resetExecute('');
+    await expect(deleteProject({})).rejects.toThrow('Either id or project_name');
+  });
+});
+
+// ── batch ───────────────────────────────────────────────────────
+
+describe('batch operations', () => {
+  test('deleteTodo with ids runs once per id', async () => {
+    resetExecuteMulti('B1', 'B2', 'B3');
+    const result = await deleteTodo({ ids: ['B1', 'B2', 'B3'] });
+    expect(executeCalls).toHaveLength(3);
+    expect(executeCalls[0]).toContain('to do id "B1"');
+    expect(executeCalls[2]).toContain('to do id "B3"');
+    expect(result.message).toBe('Deleted 3 todos');
+    expect(result.ids).toEqual(['B1', 'B2', 'B3']);
+  });
+
+  test('one bad id does not abort the rest of the batch', async () => {
+    resetExecuteMulti('B1', '__THROW__no such to do', 'B3');
+    const result = await deleteTodo({ ids: ['B1', 'BAD', 'B3'] });
+    expect(executeCalls).toHaveLength(3);
+    expect(result.message).toBe('Deleted 2 of 3 todos (1 failed)');
+    expect(result.ids).toEqual(['B1', 'B3']);
+    expect(result.results?.find((r) => r.id === 'BAD')).toMatchObject({
+      ok: false,
+      message: 'no such to do',
+    });
+  });
+
+  test('completeTodo accepts ids', async () => {
+    resetExecuteMulti('X1', 'X2');
+    const result = await completeTodo({ ids: ['X1', 'X2'] });
+    expect(executeCalls).toHaveLength(2);
+    expect(executeCalls[0]).toContain('set status of to do id "X1" to completed');
+    expect(result.message).toBe('Completed 2 todos');
+  });
+
+  test('updateTodo applies the same change to every id', async () => {
+    resetExecuteMulti('U1', 'U2');
+    const result = await updateTodo({ ids: ['U1', 'U2'], new_tags: ['ai'] });
+    expect(executeCalls).toHaveLength(2);
+    expect(executeCalls[0]).toContain('set tag names of to do id "U1" to "ai"');
+    expect(executeCalls[1]).toContain('set tag names of to do id "U2" to "ai"');
+    expect(result.message).toBe('Updated 2 todos');
+  });
+
+  test('moveTodoToProject accepts ids', async () => {
+    resetExecuteMulti('M1', 'M2');
+    const result = await moveTodoToProject({ ids: ['M1', 'M2'], project_name: 'Trip' });
+    expect(executeCalls).toHaveLength(2);
+    expect(executeCalls[1]).toContain('set project of to do id "M2" to project "Trip"');
+    expect(result.message).toBe('Moved 2 todos');
+  });
+
+  test('a leftover name never leaks into a batch call', async () => {
+    resetExecuteMulti('N1');
+    await deleteTodo({ name: 'Buy milk', ids: ['N1'] });
+    expect(executeCalls[0]).toContain('to do id "N1"');
+    expect(executeCalls[0]).not.toContain('Buy milk');
+  });
+});
+
+// ── create_project with todos ───────────────────────────────────
+
+describe('createProject with todos', () => {
+  test('creates the project, then each todo inside it', async () => {
+    resetExecuteMulti('PROJ', 'T1', 'T2');
+    const result = await createProject({ name: 'Trip', todos: ['Book flight', 'Pack'] });
+    expect(executeCalls).toHaveLength(3);
+    expect(executeCalls[0]).toContain('make new project');
+    expect(executeCalls[1]).toContain('"Book flight"');
+    expect(executeCalls[1]).toContain('set project of newTodo to project "Trip"');
+    expect(executeCalls[2]).toContain('"Pack"');
+    expect(result.message).toBe('Created project: Trip with 2 todos');
+    expect(result.id).toBe('PROJ');
+    expect(result.ids).toEqual(['T1', 'T2']);
+  });
+
+  test('accepts todo objects with notes and a deadline', async () => {
+    resetExecuteMulti('PROJ', 'T1');
+    await createProject({
+      name: 'Trip',
+      todos: [{ name: 'Book flight', notes: 'window seat', due_date: '2026-03-01' }],
+    });
+    expect(executeCalls[1]).toContain('notes:"window seat"');
+    expect(executeCalls[1]).toContain('set year of dueD to 2026');
+  });
+
+  test('stays a single call when no todos are given', async () => {
+    resetExecute('PROJ');
+    const result = await createProject({ name: 'Trip' });
+    expect(executeCalls).toHaveLength(1);
+    expect(result.message).toBe('Created project: Trip');
+    expect(result.ids).toBeUndefined();
+  });
+});
+
+// ── area todos ──────────────────────────────────────────────────
+
+describe('getAreaTodos', () => {
+  test('filters the built-in lists by area name', async () => {
+    resetExecute('A1\tPay rent\topen\tnote\t2026-03-01\tmoney');
+    const result = await getAreaTodos({ area_name: 'Life' });
+    expect(executeCalls[0]).toContain('set wantedArea to "Life"');
+    expect(executeCalls[0]).not.toContain('every to do of area');
+    expect(result.area).toBe('Life');
+    expect(result.todos).toHaveLength(1);
+    expect(result.todos[0]).toMatchObject({ id: 'A1', name: 'Pay rent', dueDate: '2026-03-01' });
+  });
+
+  test('de-duplicates todos that show up in several lists', async () => {
+    resetExecute('A1\tPay rent\topen\t\t\t\nA1\tPay rent\topen\t\t\t\nA2\tCall bank\topen\t\t\t');
+    const result = await getAreaTodos({ area_name: 'Life' });
+    expect(result.todos.map((t) => t.id)).toEqual(['A1', 'A2']);
+  });
+
+  test('filters by status', async () => {
+    resetExecute('A1\tDone thing\tcompleted\t\t\t\nA2\tOpen thing\topen\t\t\t');
+    const result = await getAreaTodos({ area_name: 'Life', status: 'open' });
+    expect(result.todos.map((t) => t.name)).toEqual(['Open thing']);
+  });
+
+  test('returns an empty list when the area has no loose todos', async () => {
+    resetExecute('');
+    const result = await getAreaTodos({ area_name: 'Empty' });
+    expect(result.todos).toEqual([]);
+  });
+});
+
+// ── checklists ──────────────────────────────────────────────────
+
+describe('checklist items', () => {
+  test('createTodo sends the checklist through the URL scheme', async () => {
+    process.env.AWESOME_THINGS_URL_TOKEN = 'url-token';
+    resetExecuteMulti('CL1', '');
+    await createTodo({ name: 'Trip', checklist: ['Passport', 'Tickets'] });
+    expect(executeCalls[0]).toContain('make new to do');
+    expect(executeCalls[1]).toContain('things:///update?');
+    expect(executeCalls[1]).toContain('id=CL1');
+    expect(executeCalls[1]).toContain('checklist-items=Passport%0ATickets');
+  });
+
+  test('updateTodo replaces the checklist', async () => {
+    process.env.AWESOME_THINGS_URL_TOKEN = 'url-token';
+    resetExecuteMulti('');
+    await updateTodo({ id: 'CL2', new_checklist: ['Only item'] });
+    expect(executeCalls[0]).toContain('checklist-items=Only%20item');
+  });
+
+  test('an empty array clears the checklist', async () => {
+    process.env.AWESOME_THINGS_URL_TOKEN = 'url-token';
+    resetExecuteMulti('');
+    await updateTodo({ id: 'CL3', new_checklist: [] });
+    expect(executeCalls[0]).toContain('checklist-items=');
+  });
+
+  test('explains the missing token instead of failing silently', async () => {
+    process.env.AWESOME_THINGS_URL_TOKEN = '';
+    resetExecuteMulti('');
+    await expect(updateTodo({ id: 'CL4', new_checklist: ['x'] })).rejects.toThrow(
+      'AWESOME_THINGS_URL_TOKEN',
     );
   });
 });

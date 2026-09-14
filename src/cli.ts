@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
+import { getAreaTodos } from './api/area-ops.js';
 import { listAreas, listTags } from './api/list-ops.js';
 import {
   moveProjectToArea,
@@ -10,8 +11,22 @@ import {
   removeProjectFromArea,
   removeTodoFromProject,
 } from './api/move-ops.js';
-import { createProject, getProjectTodos, listProjects, updateProject } from './api/project-ops.js';
-import { completeTodo, createTodo, listTodos, searchTodos, updateTodo } from './api/todo-ops.js';
+import {
+  createProject,
+  deleteProject,
+  getProjectTodos,
+  listProjects,
+  updateProject,
+} from './api/project-ops.js';
+import {
+  cancelTodo,
+  completeTodo,
+  createTodo,
+  deleteTodo,
+  listTodos,
+  searchTodos,
+  updateTodo,
+} from './api/todo-ops.js';
 import { appName, appVersion } from './config.js';
 import { errorMessage } from './server/errors.js';
 import { bold, cyan, dim, green, yellow } from './server/logger.js';
@@ -210,6 +225,12 @@ yargs(hideBin(process.argv))
           type: 'string',
           alias: 'a',
           describe: 'Area to place the todo in',
+        })
+        .option('checklist', {
+          type: 'array',
+          alias: 'c',
+          string: true,
+          describe: 'Checklist items (needs AWESOME_THINGS_URL_TOKEN)',
         }),
     (argv) =>
       run(
@@ -223,6 +244,7 @@ yargs(hideBin(process.argv))
             list: argv.list,
             project: argv.project,
             area: argv.area,
+            checklist: argv.checklist as string[] | undefined,
           }),
         fmt.formatAction,
       ),
@@ -252,8 +274,43 @@ yargs(hideBin(process.argv))
     (y) =>
       y
         .positional('name', { type: 'string', describe: 'Todo name' })
-        .option('id', { type: 'string', describe: 'Todo ID' }),
-    (argv) => run(() => completeTodo({ name: argv.name, id: argv.id }), fmt.formatAction),
+        .option('id', { type: 'string', describe: 'Todo ID' })
+        .option('ids', { type: 'array', string: true, describe: 'Several todo IDs (batch)' }),
+    (argv) =>
+      run(
+        () => completeTodo({ name: argv.name, id: argv.id, ids: argv.ids as string[] | undefined }),
+        fmt.formatAction,
+      ),
+  )
+
+  .command(
+    'cancel [name]',
+    'Mark a todo as cancelled (it will not happen)',
+    (y) =>
+      y
+        .positional('name', { type: 'string', describe: 'Todo name' })
+        .option('id', { type: 'string', describe: 'Todo ID' })
+        .option('ids', { type: 'array', string: true, describe: 'Several todo IDs (batch)' }),
+    (argv) =>
+      run(
+        () => cancelTodo({ name: argv.name, id: argv.id, ids: argv.ids as string[] | undefined }),
+        fmt.formatAction,
+      ),
+  )
+
+  .command(
+    ['rm [name]', 'trash [name]'],
+    'Delete a todo (moves it to the Trash)',
+    (y) =>
+      y
+        .positional('name', { type: 'string', describe: 'Todo name' })
+        .option('id', { type: 'string', describe: 'Todo ID' })
+        .option('ids', { type: 'array', string: true, describe: 'Several todo IDs (batch)' }),
+    (argv) =>
+      run(
+        () => deleteTodo({ name: argv.name, id: argv.id, ids: argv.ids as string[] | undefined }),
+        fmt.formatAction,
+      ),
   )
 
   .command(
@@ -277,18 +334,26 @@ yargs(hideBin(process.argv))
           type: 'string',
           describe:
             "New When date: YYYY-MM-DD[@HH:MM], today/tomorrow/evening/anytime/someday, or 'none'",
-        }),
+        })
+        .option('new-checklist', {
+          type: 'array',
+          string: true,
+          describe: 'Replace the checklist (needs AWESOME_THINGS_URL_TOKEN)',
+        })
+        .option('ids', { type: 'array', string: true, describe: 'Several todo IDs (batch)' }),
     (argv) =>
       run(
         () =>
           updateTodo({
             id: argv.id,
             name: argv.name,
+            ids: argv.ids as string[] | undefined,
             new_name: argv.newName as string | undefined,
             new_notes: argv.newNotes as string | undefined,
             new_due_date: argv.newDue as string | undefined,
             new_tags: argv.newTags as string[] | undefined,
             new_when: argv.newWhen as string | undefined,
+            new_checklist: argv.newChecklist as string[] | undefined,
           }),
         fmt.formatAction,
       ),
@@ -319,7 +384,13 @@ yargs(hideBin(process.argv))
                 describe: 'Project name',
               })
               .option('notes', { type: 'string', alias: 'n', describe: 'Notes' })
-              .option('area', { type: 'string', alias: 'a', describe: 'Area name' }),
+              .option('area', { type: 'string', alias: 'a', describe: 'Area name' })
+              .option('todo', {
+                type: 'array',
+                alias: 'T',
+                string: true,
+                describe: 'Todo to create inside the project (repeatable)',
+              }),
           (argv) =>
             run(
               () =>
@@ -327,9 +398,20 @@ yargs(hideBin(process.argv))
                   name: argv.name!,
                   notes: argv.notes,
                   area: argv.area,
+                  todos: argv.todo as string[] | undefined,
                 }),
               fmt.formatAction,
             ),
+        )
+        .command(
+          ['rm [name]', 'trash [name]'],
+          'Delete a project (moves it and its todos to the Trash)',
+          (y) =>
+            y
+              .positional('name', { type: 'string', describe: 'Project name' })
+              .option('id', { type: 'string', describe: 'Project ID' }),
+          (argv) =>
+            run(() => deleteProject({ id: argv.id, project_name: argv.name }), fmt.formatAction),
         )
         .command(
           'update <name>',
@@ -411,6 +493,16 @@ yargs(hideBin(process.argv))
     'List all areas',
     () => {},
     () => run(() => listAreas(), fmt.formatAreas),
+  )
+  .command(
+    'area <name>',
+    'List todos that sit directly in an area',
+    (y) =>
+      y
+        .positional('name', { type: 'string', demandOption: true, describe: 'Area name' })
+        .option('status', { choices: STATUS_CHOICES, alias: 's', describe: 'Filter by status' }),
+    (argv) =>
+      run(() => getAreaTodos({ area_name: argv.name!, status: argv.status }), fmt.formatAreaTodos),
   )
 
   // ── Move commands ─────────────────────────────────────────────

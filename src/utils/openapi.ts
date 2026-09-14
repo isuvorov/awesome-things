@@ -33,6 +33,20 @@ const routes: RouteMapping[] = [
     tag: 'Todos',
   },
   {
+    method: 'post',
+    path: '/api/todos/cancel',
+    toolKey: 'cancel_todo',
+    summary: 'Cancel a todo',
+    tag: 'Todos',
+  },
+  {
+    method: 'post',
+    path: '/api/todos/delete',
+    toolKey: 'delete_todo',
+    summary: 'Delete a todo (move to Trash)',
+    tag: 'Todos',
+  },
+  {
     method: 'get',
     path: '/api/todos/search',
     toolKey: 'search_todos',
@@ -61,6 +75,13 @@ const routes: RouteMapping[] = [
     tag: 'Projects',
   },
   {
+    method: 'post',
+    path: '/api/projects/delete',
+    toolKey: 'delete_project',
+    summary: 'Delete a project (move to Trash)',
+    tag: 'Projects',
+  },
+  {
     method: 'get',
     path: '/api/projects/{name}/todos',
     toolKey: 'get_project_todos',
@@ -73,6 +94,13 @@ const routes: RouteMapping[] = [
     path: '/api/areas',
     toolKey: 'list_areas',
     summary: 'List areas',
+    tag: 'Areas',
+  },
+  {
+    method: 'get',
+    path: '/api/areas/{name}/todos',
+    toolKey: 'get_area_todos',
+    summary: 'Get todos directly in an area',
     tag: 'Areas',
   },
   {
@@ -315,7 +343,7 @@ export function getHomePage() {
           const li = document.createElement('li');
           li.className = 'item';
           const status = t.status || '';
-          const isDone = status === 'completed' || status === 'cancelled';
+          const isDone = status === 'completed' || status === 'canceled' || status === 'cancelled';
           let meta = '';
           if (t.project) meta += '<span>📁 ' + esc(t.project) + '</span>';
           if (t.tags) meta += '<span>🏷 ' + esc(t.tags) + '</span>';

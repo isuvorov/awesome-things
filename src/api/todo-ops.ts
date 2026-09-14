@@ -1,8 +1,10 @@
 import { filterTodosByStatus, parseSearchLines, parseTodoColumns } from '../tools/parsers.js';
 import type {
   ActionResult,
+  CancelTodoArgs,
   CompleteTodoArgs,
   CreateTodoArgs,
+  DeleteTodoArgs,
   ListTodosArgs,
   ListTodosResult,
   SearchTodosArgs,
@@ -19,6 +21,8 @@ import {
   todoLabel,
   todoRef,
 } from '../utils/applescript.js';
+import { runBatch } from './batch.js';
+import { applyChecklist } from './url-scheme.js';
 import { applyWhen } from './when.js';
 
 /**
@@ -97,6 +101,10 @@ export async function createTodo(args: CreateTodoArgs): Promise<ActionResult> {
 
   if (args.when) {
     await applyWhen(`to do id ${quoteString(todoId)}`, todoId, args.when);
+  }
+
+  if (args.checklist && args.checklist.length > 0) {
+    await applyChecklist(`to do id ${quoteString(todoId)}`, todoId, args.checklist);
   }
 
   const suffix = args.project
@@ -192,6 +200,8 @@ return idLine & "\n" & nameLine & "\n" & statusLine & "\n" & noteLine & "\n" & d
 }
 
 export async function completeTodo(args: CompleteTodoArgs): Promise<ActionResult> {
+  if (args.ids?.length) return runBatch(args.ids, args, completeTodo, 'Completed');
+
   const ref = todoRef(args);
   const command = `set status of ${ref} to completed\nreturn id of ${ref}`;
   const script = tellThings(command);
@@ -200,7 +210,62 @@ export async function completeTodo(args: CompleteTodoArgs): Promise<ActionResult
   return { message: `Completed todo: ${todoLabel(args)}`, id: todoId };
 }
 
+/**
+ * Things3 has three statuses, not two. Cancelling keeps the todo in the Logbook
+ * but marks it as "not going to happen" — completing it would claim work that
+ * never happened, and deleting it would lose the record.
+ */
+export async function cancelTodo(args: CancelTodoArgs): Promise<ActionResult> {
+  if (args.ids?.length) return runBatch(args.ids, args, cancelTodo, 'Cancelled');
+
+  const ref = todoRef(args);
+  // Things3 spells the enumerator `canceled`; the British spelling is tried as a
+  // fallback because an unknown enumerator compiles into a plain variable and only
+  // blows up at runtime — which the `on error` branch then catches.
+  const command = [
+    `set theTodo to ${ref}`,
+    'try',
+    '  set status of theTodo to canceled',
+    'on error',
+    '  set status of theTodo to cancelled',
+    'end try',
+    'return id of theTodo',
+  ].join('\n');
+
+  const todoId = await execute(tellThings(command));
+  return { message: `Cancelled todo: ${todoLabel(args)}`, id: todoId };
+}
+
+/**
+ * Real deletion, as opposed to `completeTodo`: a todo created by mistake belongs
+ * in the Trash, not in the Logbook next to the work that was actually done.
+ *
+ * Things3 expresses it as a move to the Trash list; the id is read *before* the
+ * move, because afterwards the reference no longer resolves. `delete` is kept as
+ * a fallback — older Things3 builds accept it where the Trash list move fails.
+ */
+export async function deleteTodo(args: DeleteTodoArgs): Promise<ActionResult> {
+  if (args.ids?.length) return runBatch(args.ids, args, deleteTodo, 'Deleted');
+
+  const ref = todoRef(args);
+  const command = [
+    `set theTodo to ${ref}`,
+    'set theId to id of theTodo',
+    'try',
+    '  move theTodo to list "Trash"',
+    'on error',
+    '  delete theTodo',
+    'end try',
+    'return theId',
+  ].join('\n');
+
+  const todoId = await execute(tellThings(command));
+  return { message: `Deleted todo ${todoLabel(args)} (moved to Trash)`, id: todoId };
+}
+
 export async function updateTodo(args: UpdateTodoArgs): Promise<ActionResult> {
+  if (args.ids?.length) return runBatch(args.ids, args, updateTodo, 'Updated');
+
   const commands: string[] = [];
   const ref = todoRef(args);
   const label = todoLabel(args);
@@ -226,7 +291,7 @@ export async function updateTodo(args: UpdateTodoArgs): Promise<ActionResult> {
     commands.push(`set tag names of ${ref} to ${quoteString(args.new_tags.join(', '))}`);
   }
 
-  if (commands.length === 0 && args.new_when === undefined) {
+  if (commands.length === 0 && args.new_when === undefined && args.new_checklist === undefined) {
     return { message: `No updates specified for todo: ${label}` };
   }
 
@@ -238,6 +303,11 @@ export async function updateTodo(args: UpdateTodoArgs): Promise<ActionResult> {
 
   if (args.new_when !== undefined) {
     await applyWhen(ref, todoId, args.new_when);
+    todoId = todoId || (await execute(tellThings(`return id of ${ref}`)));
+  }
+
+  if (args.new_checklist !== undefined) {
+    await applyChecklist(ref, todoId, args.new_checklist);
     todoId = todoId || (await execute(tellThings(`return id of ${ref}`)));
   }
 

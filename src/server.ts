@@ -1,8 +1,12 @@
 #!/usr/bin/env node
 import {
+  cancelTodo,
   completeTodo,
   createProject,
   createTodo,
+  deleteProject,
+  deleteTodo,
+  getAreaTodos,
   getProjectTodos,
   listAreas,
   listProjects,
@@ -159,6 +163,14 @@ async function handleRoute(
     return handle(async () => completeTodo((await body(req)) as any));
   }
 
+  if (pathname === '/api/todos/cancel' && method === 'POST') {
+    return handle(async () => cancelTodo((await body(req)) as any));
+  }
+
+  if (pathname === '/api/todos/delete' && method === 'POST') {
+    return handle(async () => deleteTodo((await body(req)) as any));
+  }
+
   if (pathname === '/api/todos/search' && method === 'GET') {
     const q = url.searchParams.get('q') || '';
     return handle(() => searchTodos({ query: q }));
@@ -179,6 +191,10 @@ async function handleRoute(
     return handle(async () => updateProject((await body(req)) as any));
   }
 
+  if (pathname === '/api/projects/delete' && method === 'POST') {
+    return handle(async () => deleteProject((await body(req)) as any));
+  }
+
   const projectTodosMatch = pathname.match(/^\/api\/projects\/(.+)\/todos$/);
   if (projectTodosMatch && method === 'GET') {
     const projectName = decodeURIComponent(projectTodosMatch[1]!);
@@ -194,6 +210,13 @@ async function handleRoute(
 
   if (pathname === '/api/areas' && method === 'GET') {
     return handle(() => listAreas());
+  }
+
+  const areaTodosMatch = pathname.match(/^\/api\/areas\/(.+)\/todos$/);
+  if (areaTodosMatch && method === 'GET') {
+    const areaName = decodeURIComponent(areaTodosMatch[1]!);
+    const status = url.searchParams.get('status') as any;
+    return handle(() => getAreaTodos({ area_name: areaName, status }));
   }
 
   // ── Move ──────────────────────────────────────────────────

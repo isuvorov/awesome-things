@@ -1,6 +1,7 @@
-import { bold, cyan, dim, gray, green, yellow } from '../server/logger.js';
+import { bold, cyan, dim, gray, green, red, yellow } from '../server/logger.js';
 import type {
   ActionResult,
+  GetAreaTodosResult,
   GetProjectTodosResult,
   ListAreasResult,
   ListProjectsResult,
@@ -29,9 +30,17 @@ export interface Formatters {
   formatSearch: (r: SearchTodosResult) => string;
   formatProjects: (r: ListProjectsResult) => string;
   formatProjectTodos: (r: GetProjectTodosResult) => string;
+  formatAreaTodos: (r: GetAreaTodosResult) => string;
   formatTags: (r: ListTagsResult) => string;
   formatAreas: (r: ListAreasResult) => string;
   formatAction: (r: ActionResult) => string;
+}
+
+/** A batch that half worked must say so — the summary line alone hides which ids failed. */
+function failedLines(result: ActionResult, mark: string): string[] {
+  return (result.results ?? [])
+    .filter((item) => !item.ok)
+    .map((item) => `${mark}${item.id}: ${item.message}`);
 }
 
 export type FormatStyle = 'pretty' | 'table' | 'plain';
@@ -110,6 +119,12 @@ const prettyFormatters: Formatters = {
     return `${header}\n\n${result.todos.map(prettyTodoLine).join('\n')}`;
   },
 
+  formatAreaTodos(result) {
+    const header = `  ${bold(`Area: ${result.area}`)} ${dim(`(${result.todos.length} todos)`)}`;
+    if (result.todos.length === 0) return `${header}\n\n  ${dim('(none)')}`;
+    return `${header}\n\n${result.todos.map(prettyTodoLine).join('\n')}`;
+  },
+
   formatTags(result) {
     const header = `  ${bold('Tags')} ${dim(`(${result.tags.length})`)}`;
     if (result.tags.length === 0) return `${header}\n  ${dim('(none)')}`;
@@ -123,7 +138,9 @@ const prettyFormatters: Formatters = {
   },
 
   formatAction(result) {
-    return `  ${green('\u2713')}  ${result.message}`;
+    const head = `  ${green('\u2713')}  ${result.message}`;
+    const failed = failedLines(result, `  ${red('\u2717')}  `);
+    return failed.length > 0 ? [head, ...failed].join('\n') : head;
   },
 };
 
@@ -180,6 +197,19 @@ const tableFormatters: Formatters = {
     const hdr = dim(tableRow(['', 'NAME', 'DUE', 'TAGS'], W));
     const rows = result.todos.map((t) => {
       const icon = t.status !== 'completed' ? cyan('\u25CB') : dim(green('\u2713'));
+      const line = `  ${icon}${' '.repeat(W[0] - 1)} ${truncate(t.name, W[1]).padEnd(W[1])}  ${(t.dueDate || '').padEnd(W[2])}  ${t.tags || ''}`;
+      return t.status === 'completed' ? dim(line) : line;
+    });
+    return `${header}\n\n${hdr}\n${rows.join('\n')}`;
+  },
+
+  formatAreaTodos(result) {
+    const header = `  ${bold(`Area: ${result.area}`)} ${dim(`(${result.todos.length} todos)`)}`;
+    if (result.todos.length === 0) return `${header}\n\n  ${dim('(none)')}`;
+    const W = [3, 50, 12, 20];
+    const hdr = dim(tableRow(['', 'NAME', 'DUE', 'TAGS'], W));
+    const rows = result.todos.map((t) => {
+      const icon = t.status !== 'completed' ? cyan('○') : dim(green('✓'));
       const line = `  ${icon}${' '.repeat(W[0] - 1)} ${truncate(t.name, W[1]).padEnd(W[1])}  ${(t.dueDate || '').padEnd(W[2])}  ${t.tags || ''}`;
       return t.status === 'completed' ? dim(line) : line;
     });
@@ -249,6 +279,12 @@ const plainFormatters: Formatters = {
     return `${header}\n\n${result.todos.map(plainTodoLine).join('\n')}`;
   },
 
+  formatAreaTodos(result) {
+    const header = `Area: ${result.area} (${result.todos.length} todos)`;
+    if (result.todos.length === 0) return `${header}\n\n(none)`;
+    return `${header}\n\n${result.todos.map(plainTodoLine).join('\n')}`;
+  },
+
   formatTags(result) {
     if (result.tags.length === 0) return 'Tags (0)\n(none)';
     return `Tags (${result.tags.length})\n${result.tags.join(', ')}`;
@@ -260,7 +296,8 @@ const plainFormatters: Formatters = {
   },
 
   formatAction(result) {
-    return result.message;
+    const failed = failedLines(result, 'FAILED ');
+    return failed.length > 0 ? [result.message, ...failed].join('\n') : result.message;
   },
 };
 
@@ -282,6 +319,7 @@ export const formatTodos = prettyFormatters.formatTodos;
 export const formatSearch = prettyFormatters.formatSearch;
 export const formatProjects = prettyFormatters.formatProjects;
 export const formatProjectTodos = prettyFormatters.formatProjectTodos;
+export const formatAreaTodos = prettyFormatters.formatAreaTodos;
 export const formatTags = prettyFormatters.formatTags;
 export const formatAreas = prettyFormatters.formatAreas;
 export const formatAction = prettyFormatters.formatAction;

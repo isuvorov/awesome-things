@@ -1,8 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  CancelTodoArgsSchema,
   CompleteTodoArgsSchema,
   CreateProjectArgsSchema,
   CreateTodoArgsSchema,
+  DeleteProjectArgsSchema,
+  DeleteTodoArgsSchema,
+  GetAreaTodosArgsSchema,
   GetProjectTodosArgsSchema,
   ListProjectsArgsSchema,
   ListTodosArgsSchema,
@@ -230,10 +234,99 @@ describe('MoveTodoToProjectArgsSchema', () => {
   });
 });
 
+describe('delete / cancel schemas', () => {
+  test('DeleteTodoArgsSchema accepts an id', () => {
+    expect(DeleteTodoArgsSchema.parse({ id: 'abc' }).id).toBe('abc');
+  });
+
+  test('DeleteTodoArgsSchema accepts a batch of ids without id or name', () => {
+    const result = DeleteTodoArgsSchema.parse({ ids: ['a', 'b', 'c'] });
+    expect(result.ids).toEqual(['a', 'b', 'c']);
+  });
+
+  test('DeleteTodoArgsSchema rejects an empty target', () => {
+    expect(() => DeleteTodoArgsSchema.parse({})).toThrow();
+    expect(() => DeleteTodoArgsSchema.parse({ ids: [] })).toThrow();
+  });
+
+  test('CancelTodoArgsSchema accepts a name', () => {
+    expect(CancelTodoArgsSchema.parse({ name: 'Buy milk' }).name).toBe('Buy milk');
+  });
+
+  test('DeleteProjectArgsSchema takes a name or an id', () => {
+    expect(DeleteProjectArgsSchema.parse({ project_name: 'Trip' }).project_name).toBe('Trip');
+    expect(DeleteProjectArgsSchema.parse({ id: 'PROJ1' }).id).toBe('PROJ1');
+    expect(() => DeleteProjectArgsSchema.parse({})).toThrow();
+  });
+});
+
+describe('GetAreaTodosArgsSchema', () => {
+  test('requires an area name', () => {
+    expect(GetAreaTodosArgsSchema.parse({ area_name: 'Work' }).area_name).toBe('Work');
+    expect(() => GetAreaTodosArgsSchema.parse({})).toThrow();
+  });
+
+  test('lowercases status', () => {
+    expect(GetAreaTodosArgsSchema.parse({ area_name: 'Work', status: 'OPEN' }).status).toBe('open');
+  });
+});
+
+describe('CreateProjectArgsSchema todos', () => {
+  test('accepts plain names', () => {
+    const result = CreateProjectArgsSchema.parse({ name: 'Trip', todos: ['Book flight', 'Pack'] });
+    expect(result.todos).toEqual(['Book flight', 'Pack']);
+  });
+
+  test('accepts full todo objects', () => {
+    const result = CreateProjectArgsSchema.parse({
+      name: 'Trip',
+      todos: [{ name: 'Book flight', when: 'today', tags: ['travel'] }],
+    });
+    expect(result.todos?.[0]).toMatchObject({ name: 'Book flight', when: 'today' });
+  });
+
+  test('rejects a todo object without a name', () => {
+    expect(() =>
+      CreateProjectArgsSchema.parse({ name: 'Trip', todos: [{ notes: 'x' }] }),
+    ).toThrow();
+  });
+});
+
 describe('toolSchemas', () => {
-  test('has all 17 tool schemas', () => {
+  test('has all 21 tool schemas', () => {
     const tools = Object.keys(toolSchemas);
-    expect(tools).toHaveLength(17);
+    expect(tools).toHaveLength(21);
+  });
+
+  test('exposes delete and cancel next to complete', () => {
+    expect(toolSchemas).toHaveProperty('delete_todo');
+    expect(toolSchemas).toHaveProperty('cancel_todo');
+    expect(toolSchemas).toHaveProperty('delete_project');
+  });
+
+  test('get_area_todos requires area_name', () => {
+    expect(toolSchemas.get_area_todos.required).toContain('area_name');
+  });
+
+  test('every todo operation accepts a batch of ids', () => {
+    for (const tool of [
+      toolSchemas.complete_todo,
+      toolSchemas.cancel_todo,
+      toolSchemas.delete_todo,
+      toolSchemas.update_todo,
+      toolSchemas.move_todo,
+      toolSchemas.move_todo_to_project,
+      toolSchemas.move_todo_to_area,
+      toolSchemas.remove_todo_from_project,
+    ]) {
+      expect(tool.properties).toHaveProperty('ids');
+      expect((tool.properties as { ids: { type: string } }).ids.type).toBe('array');
+    }
+  });
+
+  test('create_project accepts todos', () => {
+    expect(toolSchemas.create_project.properties).toHaveProperty('todos');
+    expect(toolSchemas.create_project.properties.todos.type).toBe('array');
   });
 
   test('update_project requires project_name', () => {

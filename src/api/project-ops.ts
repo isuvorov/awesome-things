@@ -2,6 +2,7 @@ import { filterTodosByStatus, parseProjectLines, parseTodoLines } from '../tools
 import type {
   ActionResult,
   CreateProjectArgs,
+  DeleteProjectArgs,
   GetProjectTodosArgs,
   GetProjectTodosResult,
   ListProjectsArgs,
@@ -15,6 +16,7 @@ import {
   quoteString,
   tellThings,
 } from '../utils/applescript.js';
+import { createTodo } from './todo-ops.js';
 
 export async function createProject(args: CreateProjectArgs): Promise<ActionResult> {
   const props: [string, string][] = [['name', quoteString(args.name)]];
@@ -35,8 +37,52 @@ export async function createProject(args: CreateProjectArgs): Promise<ActionResu
   commands.push('return id of newProj');
 
   const projId = await execute(tellThings(commands.join('\n')));
+
+  // Each todo goes through createTodo rather than a hand-rolled `make new to do`
+  // block: that is the path that knows how to attach a todo to a project, and how
+  // to apply `when`, reminders and checklists afterwards.
+  const todoIds: string[] = [];
+  for (const todo of args.todos ?? []) {
+    const spec = typeof todo === 'string' ? { name: todo } : todo;
+    const created = await createTodo({ ...spec, project: args.name });
+    if (created.id) todoIds.push(created.id);
+  }
+
   const suffix = args.area ? ` in area "${args.area}"` : '';
-  return { message: `Created project: ${args.name}${suffix}`, id: projId };
+  const todosSuffix = todoIds.length > 0 ? ` with ${todoIds.length} todos` : '';
+  return {
+    message: `Created project: ${args.name}${suffix}${todosSuffix}`,
+    id: projId,
+    ...(todoIds.length > 0 ? { ids: todoIds } : {}),
+  };
+}
+
+/** Two projects can share a name, so an id is the safer target for a destructive call. */
+function projectRef(args: DeleteProjectArgs): string {
+  if (args.id) return `project id ${quoteString(args.id)}`;
+  if (args.project_name) return `project ${quoteString(args.project_name)}`;
+  throw new Error('Either id or project_name must be provided');
+}
+
+/**
+ * Trashes the project itself — `remove_project_from_area` only detaches it.
+ * Things3 moves the project's todos to the Trash along with it.
+ */
+export async function deleteProject(args: DeleteProjectArgs): Promise<ActionResult> {
+  const label = args.project_name ? `"${args.project_name}"` : `id:${args.id}`;
+  const commands = [
+    `set theProject to ${projectRef(args)}`,
+    'set theId to id of theProject',
+    'try',
+    '  move theProject to list "Trash"',
+    'on error',
+    '  delete theProject',
+    'end try',
+    'return theId',
+  ];
+
+  const projId = await execute(tellThings(commands.join('\n')));
+  return { message: `Deleted project ${label} (moved to Trash)`, id: projId };
 }
 
 export async function updateProject(args: UpdateProjectArgs): Promise<ActionResult> {

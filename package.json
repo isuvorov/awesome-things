@@ -98,7 +98,7 @@
   "size-limit": [
     {
       "path": "lib/index.js",
-      "limit": "5kb",
+      "limit": "6kb",
       "ignore": [
         "zod",
         "node:*"

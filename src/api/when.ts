@@ -1,4 +1,5 @@
 import { buildDateVar, execute, quoteString, tellThings } from '../utils/applescript.js';
+import { requireUrlToken, resolveId, thingsUpdate } from './url-scheme.js';
 
 /**
  * Things3 has two independent dates and they mean different things:
@@ -24,16 +25,9 @@ export function hasReminder(value: string): boolean {
 
 /** Things' URL scheme — the only interface that accepts a reminder time. */
 async function urlSchemeWhen(ref: string, todoId: string | undefined, when: string): Promise<void> {
-  const urlToken = process.env.AWESOME_THINGS_URL_TOKEN;
-  if (!urlToken) {
-    throw new Error(
-      `AWESOME_THINGS_URL_TOKEN is required for a reminder time (${when}). ` +
-        'Find it in Things → Settings → General. Without it, use a plain date.',
-    );
-  }
-  const id = todoId || (await execute(tellThings(`return id of ${ref}`)));
-  const url = `things:///update?auth-token=${encodeURIComponent(urlToken)}&id=${encodeURIComponent(id)}&when=${encodeURIComponent(when)}`;
-  await execute(`open location "${url}"`);
+  const urlToken = requireUrlToken(`a reminder time (${when})`, 'Without it, use a plain date.');
+  const id = await resolveId(ref, todoId);
+  await thingsUpdate(urlToken, id, { when });
 }
 
 /**
@@ -41,16 +35,10 @@ async function urlSchemeWhen(ref: string, todoId: string | undefined, when: stri
  * through its URL scheme, which needs the token from Things → Settings → General.
  */
 async function scheduleEvening(ref: string, todoId: string | undefined): Promise<void> {
-  const urlToken = process.env.AWESOME_THINGS_URL_TOKEN;
-  if (!urlToken) {
-    throw new Error(
-      'AWESOME_THINGS_URL_TOKEN is required for evening. Find it in Things → Settings → General.',
-    );
-  }
-  const id = todoId || (await execute(tellThings(`return id of ${ref}`)));
+  const urlToken = requireUrlToken('evening');
+  const id = await resolveId(ref, todoId);
   await execute(tellThings(`move ${ref} to list "Today"`));
-  const url = `things:///update?auth-token=${encodeURIComponent(urlToken)}&id=${encodeURIComponent(id)}&when=evening`;
-  await execute(`open location "${url}"`);
+  await thingsUpdate(urlToken, id, { when: 'evening' });
 }
 
 /**

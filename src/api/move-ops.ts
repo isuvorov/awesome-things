@@ -15,26 +15,24 @@ import {
   todoLabel,
   todoRef,
 } from '../utils/applescript.js';
+import { runBatch } from './batch.js';
+import { requireUrlToken, resolveId, thingsUpdate } from './url-scheme.js';
 
 export async function moveTodo(args: MoveTodoArgs): Promise<ActionResult> {
+  if (args.ids?.length) return runBatch(args.ids, args, moveTodo, 'Moved');
+
   const ref = todoRef(args);
   const label = todoLabel(args);
 
   if (args.destination === 'evening') {
-    const urlToken = process.env.AWESOME_THINGS_URL_TOKEN;
-    if (!urlToken) {
-      throw new Error(
-        'AWESOME_THINGS_URL_TOKEN is required for evening. Find it in Things → Settings → General.',
-      );
-    }
+    const urlToken = requireUrlToken('evening');
     // Evening requires Things URL scheme — get the id first, then use URL scheme
-    const todoId = args.id || (await execute(tellThings(`return id of ${ref}`)));
+    const todoId = await resolveId(ref, args.id);
     // Move to Today first via AppleScript
     const moveScript = tellThings(`move ${ref} to list "Today"`);
     await execute(moveScript);
     // Then set evening via URL scheme (requires auth-token)
-    const urlScheme = `things:///update?auth-token=${encodeURIComponent(urlToken)}&id=${encodeURIComponent(todoId)}&when=evening`;
-    await execute(`open location "${urlScheme}"`);
+    await thingsUpdate(urlToken, todoId, { when: 'evening' });
     return { message: `Moved todo ${label} to This Evening`, id: todoId };
   }
 
@@ -56,6 +54,8 @@ export async function moveTodo(args: MoveTodoArgs): Promise<ActionResult> {
 }
 
 export async function moveTodoToProject(args: MoveTodoToProjectArgs): Promise<ActionResult> {
+  if (args.ids?.length) return runBatch(args.ids, args, moveTodoToProject, 'Moved');
+
   const ref = todoRef(args);
   const label = todoLabel(args);
   const command = `set project of ${ref} to project ${quoteString(args.project_name)}\nreturn id of ${ref}`;
@@ -66,6 +66,8 @@ export async function moveTodoToProject(args: MoveTodoToProjectArgs): Promise<Ac
 }
 
 export async function moveTodoToArea(args: MoveTodoToAreaArgs): Promise<ActionResult> {
+  if (args.ids?.length) return runBatch(args.ids, args, moveTodoToArea, 'Moved');
+
   const ref = todoRef(args);
   const label = todoLabel(args);
   const command = `set area of ${ref} to area ${quoteString(args.area_name)}\nreturn id of ${ref}`;
@@ -86,6 +88,8 @@ export async function moveProjectToArea(args: MoveProjectToAreaArgs): Promise<Ac
 export async function removeTodoFromProject(
   args: RemoveTodoFromProjectArgs,
 ): Promise<ActionResult> {
+  if (args.ids?.length) return runBatch(args.ids, args, removeTodoFromProject, 'Detached');
+
   const ref = todoRef(args);
   const label = todoLabel(args);
   const command = `delete project of ${ref}\nreturn id of ${ref}`;

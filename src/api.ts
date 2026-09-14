@@ -1,3 +1,4 @@
+export { getAreaTodos } from './api/area-ops.js';
 export { listAreas, listTags } from './api/list-ops.js';
 export {
   moveProjectToArea,
@@ -9,16 +10,31 @@ export {
 } from './api/move-ops.js';
 export {
   createProject,
+  deleteProject,
   getProjectTodos,
   listProjects,
   updateProject,
 } from './api/project-ops.js';
-export { completeTodo, createTodo, listTodos, searchTodos, updateTodo } from './api/todo-ops.js';
+export {
+  cancelTodo,
+  completeTodo,
+  createTodo,
+  deleteTodo,
+  listTodos,
+  searchTodos,
+  updateTodo,
+} from './api/todo-ops.js';
 export type {
   ActionResult,
+  BatchItemResult,
+  CancelTodoArgs,
   CompleteTodoArgs,
   CreateProjectArgs,
   CreateTodoArgs,
+  DeleteProjectArgs,
+  DeleteTodoArgs,
+  GetAreaTodosArgs,
+  GetAreaTodosResult,
   GetProjectTodosArgs,
   GetProjectTodosResult,
   ListAreasResult,
@@ -32,6 +48,7 @@ export type {
   MoveTodoToAreaArgs,
   MoveTodoToProjectArgs,
   ProjectItem,
+  ProjectTodo,
   RemoveProjectFromAreaArgs,
   RemoveTodoFromProjectArgs,
   SearchResultItem,

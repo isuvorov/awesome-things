@@ -31,6 +31,14 @@ mock.module('../src/api/todo-ops.js', () => ({
   completeTodo: mock(async (args: { name: string }) => ({
     message: `Completed todo: ${args.name}`,
   })),
+  cancelTodo: mock(async (args: { name: string }) => ({
+    message: `Cancelled todo: ${args.name}`,
+  })),
+  deleteTodo: mock(async (args: { name?: string; ids?: string[] }) =>
+    args.ids
+      ? { message: `Deleted ${args.ids.length} todos`, ids: args.ids }
+      : { message: `Deleted todo "${args.name}" (moved to Trash)` },
+  ),
   updateTodo: mock(async (args: { name: string }) => ({ message: `Updated todo: ${args.name}` })),
   searchTodos: mock(async (args: { query: string }) => {
     if (!returnData) return { query: args.query, results: [] };
@@ -48,6 +56,9 @@ mock.module('../src/api/project-ops.js', () => ({
   updateProject: mock(async (args: { project_name: string }) => ({
     message: `Updated project: "${args.project_name}"`,
   })),
+  deleteProject: mock(async (args: { project_name: string }) => ({
+    message: `Deleted project "${args.project_name}" (moved to Trash)`,
+  })),
   listProjects: mock(async (args: { area?: string }) => {
     if (!returnData) return { area: args.area, projects: [] };
     return {
@@ -61,6 +72,26 @@ mock.module('../src/api/project-ops.js', () => ({
       project: args.project_name,
       todos: [
         { name: 'Task A', status: 'open', notes: 'notes', dueDate: '2024-06-01', tags: 'tag1' },
+      ],
+    };
+  }),
+}));
+
+mock.module('../src/api/area-ops.js', () => ({
+  getAreaTodos: mock(async (args: { area_name: string }) => {
+    if (!returnData) return { area: args.area_name, todos: [] };
+    return {
+      area: args.area_name,
+      todos: [
+        {
+          id: 'A1',
+          name: 'Pay rent',
+          status: 'open',
+          notes: '',
+          dueDate: '',
+          tags: '',
+          project: '',
+        },
       ],
     };
   }),
@@ -306,6 +337,82 @@ describe('POST /api/todos/complete', () => {
     const data = await res.json();
     expect(data.ok).toBe(true);
     expect(data.message).toContain('Completed todo');
+  });
+});
+
+describe('POST /api/todos/cancel', () => {
+  test('cancels a todo and returns message', async () => {
+    const res = await fetch(`${baseUrl}/api/todos/cancel`, {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Not happening' }),
+    });
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.ok).toBe(true);
+    expect(data.message).toContain('Cancelled todo');
+  });
+});
+
+describe('POST /api/todos/delete', () => {
+  test('deletes a todo and returns message', async () => {
+    const res = await fetch(`${baseUrl}/api/todos/delete`, {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Oops' }),
+    });
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.ok).toBe(true);
+    expect(data.message).toContain('moved to Trash');
+  });
+
+  test('accepts a batch of ids', async () => {
+    const res = await fetch(`${baseUrl}/api/todos/delete`, {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: ['a', 'b', 'c'] }),
+    });
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.message).toBe('Deleted 3 todos');
+    expect(data.ids).toEqual(['a', 'b', 'c']);
+  });
+});
+
+describe('POST /api/projects/delete', () => {
+  test('deletes a project and returns message', async () => {
+    const res = await fetch(`${baseUrl}/api/projects/delete`, {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project_name: 'Old plan' }),
+    });
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.ok).toBe(true);
+    expect(data.message).toContain('moved to Trash');
+  });
+});
+
+describe('GET /api/areas/{name}/todos', () => {
+  test('returns the todos sitting directly in the area', async () => {
+    returnData = true;
+    const res = await fetch(`${baseUrl}/api/areas/Life/todos`, { headers: authHeaders() });
+    returnData = false;
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.ok).toBe(true);
+    expect(data.area).toBe('Life');
+    expect(data.todos[0].name).toBe('Pay rent');
+  });
+
+  test('decodes an area name with spaces', async () => {
+    const res = await fetch(`${baseUrl}/api/areas/${encodeURIComponent('My Life')}/todos`, {
+      headers: authHeaders(),
+    });
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.area).toBe('My Life');
   });
 });
 
@@ -623,6 +730,18 @@ describe('MCP endpoint', () => {
     expect(res.status).toBe(200);
     const text = await res.text();
     expect(text).toContain('create_todo');
+  });
+
+  test('advertises the destructive tools too', async () => {
+    const res = await fetch(`${baseUrl}/mcp`, {
+      method: 'POST',
+      headers: mcpHeaders(),
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+    });
+    const text = await res.text();
+    for (const tool of ['delete_todo', 'cancel_todo', 'delete_project', 'get_area_todos']) {
+      expect(text).toContain(tool);
+    }
   });
 
   test('works with token-in-path auth', async () => {

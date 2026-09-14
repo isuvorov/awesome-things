@@ -136,9 +136,33 @@ describe('pretty formatters', () => {
     expect(out).toContain('Personal');
   });
 
+  test('formatAreaTodos', () => {
+    const out = stripAnsi(
+      fmt.formatAreaTodos({ area: 'Life', todos: [todo({ name: 'Pay rent' })] }),
+    );
+    expect(out).toContain('Area: Life');
+    expect(out).toContain('Pay rent');
+  });
+
   test('formatAction', () => {
     const out = stripAnsi(fmt.formatAction({ message: 'Created todo: Buy milk' }));
     expect(out).toContain('Created todo: Buy milk');
+  });
+
+  test('formatAction lists the ids a batch failed on', () => {
+    const out = stripAnsi(
+      fmt.formatAction({
+        message: 'Deleted 1 of 2 todos (1 failed)',
+        ids: ['ok1'],
+        results: [
+          { id: 'ok1', ok: true, message: 'Deleted todo id:ok1 (moved to Trash)' },
+          { id: 'bad1', ok: false, message: 'no such to do' },
+        ],
+      }),
+    );
+    expect(out).toContain('Deleted 1 of 2 todos (1 failed)');
+    expect(out).toContain('bad1: no such to do');
+    expect(out).not.toContain('ok1: Deleted');
   });
 });
 
@@ -272,6 +296,21 @@ describe('plain formatters', () => {
 
   test('formatAction', () => {
     expect(fmt.formatAction({ message: 'Done' })).toBe('Done');
+  });
+
+  test('formatAreaTodos', () => {
+    const out = fmt.formatAreaTodos({ area: 'Life', todos: [todo({ name: 'Pay rent' })] });
+    expect(out).toContain('Area: Life');
+    expect(out).toContain('Pay rent');
+  });
+
+  test('formatAction reports batch failures', () => {
+    const out = fmt.formatAction({
+      message: 'Deleted 0 of 1 todos (1 failed)',
+      ids: [],
+      results: [{ id: 'bad1', ok: false, message: 'no such to do' }],
+    });
+    expect(out).toContain('FAILED bad1: no such to do');
   });
 
   test('no ANSI codes in plain output', () => {

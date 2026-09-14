@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/isuvorov/awesome-things/compare/v1.2.1...v1.3.0) (2026-09-14)
+
+
+### Features
+
+* **todos:** delete and cancel todos, and accept ids for batch operations ([455b314](https://github.com/isuvorov/awesome-things/commit/455b314928ec1b0d4e188c57e2c61e68b513aabd))
+
 ## [1.2.1](https://github.com/isuvorov/awesome-things/compare/v1.2.0...v1.2.1) (2026-09-11)
 
 

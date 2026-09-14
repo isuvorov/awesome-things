@@ -5,11 +5,63 @@
 Things3 JS/TS API, MCP server, CLI, and HTTP API for macOS.
 
 **Important:**
+- **The assistant's name in this repo is Гондон.** Answer to it, and use it when referring to yourself
 - **ALWAYS** update this file and docs/guideline.md when changing scripts, structure, dependencies, or commands — do it in the same step, not after
 - Run `bun run fix` if all ok run `bun run test` after each code change
 - Before saying "done", always run full `bun run fix` and `bun run test` (partial runs are ok for debugging)
 - Always write tests for new functionality (schemas, API, HTTP endpoints)
 - Default to using Bun instead of Node.js
+- **NEVER start a background or long-lived process here** — see Working Agreement below, this one has already cost an hour
+
+## Working Agreement
+
+Hard-won rules. Every line here is a mistake that was actually made in this repo — read it before
+touching git or starting anything.
+
+### Never start a server
+`AWESOME_THINGS_TUNNEL=frp` is set in the user's environment and is inherited by every shell. Any
+`bun run src/server.ts` — even "just a local check on a spare port" — silently opens its own `frpc`
+and **seizes the production domain**, because frp hands the domain to whoever connected last. The
+symptom is maddening: the domain answers, serves the right code, and rejects the correct token,
+because it is now a different process.
+
+The user already runs a server. Use it instead of starting one:
+- `http://localhost:32123`, bearer token in `$AWESOME_THINGS_TOKEN` (already in the shell)
+- `AWESOME_THINGS_URL_TOKEN` is a different thing — the Things URL-scheme token, not for HTTP
+- ask the user to start it if it is down; do not start it yourself
+- if a stray process must be found: `lsof -nP -iTCP -sTCP:LISTEN` and `lsof -nP -iTCP | grep frpc`
+
+### Verify against the real Things3 through that server
+Agent bash has no Apple Events access: `osascript` dies with -2741 and the Things3 dictionary never
+loads, with or without a sandbox. The user's server process does have the rights, so real
+verification means HTTP calls to `localhost:32123`. Unit tests mock `execute()` and prove nothing
+about Things3 behaviour. Use scratch objects (`__mvp-check-*`) and delete them afterwards.
+
+### Git
+- **Commit to `main` directly.** No branches unless the user asks for one.
+- **Author:** the environment forces `GIT_AUTHOR_NAME`/`GIT_COMMITTER_NAME` to `isuvorovBOT`, which
+  overrides `.gitconfig`. Checking `git config user.name` does not reveal this. Always export all
+  four before committing:
+  ```bash
+  export GIT_AUTHOR_NAME="Igor Suvorov" GIT_AUTHOR_EMAIL="hi@isuvorov.com"
+  export GIT_COMMITTER_NAME="Igor Suvorov" GIT_COMMITTER_EMAIL="hi@isuvorov.com"
+  ```
+- **Messages:** one line, Conventional Commits, in the style of the existing history. No body, no
+  Claude attribution, no co-author trailers.
+- **Signing is the user's step** — `~/.gnupg` is unreadable from the agent sandbox (`No secret key`).
+  Finish the task by printing exactly:
+  ```bash
+  git rebase -f -S origin/main && git push
+  ```
+  `-f` is not optional: without it the rebase is a no-op when the branch is already on top of the
+  upstream, so nothing is recreated and nothing gets signed.
+- **Checking signatures:** `git cat-file commit <sha> | grep gpgsig`. Never `git log %G?` — without
+  keyring access it reports `N` for signed commits too.
+- Pushing `main` triggers semantic-release: `feat:` → minor, published to npm automatically.
+
+### Sandbox limits
+`ps`, `kill`, `~/.gnupg` and Apple Events are all denied. Never pipe a `kill` through `2>/dev/null`
+— the error is the only thing that tells you the process is still alive.
 
 ## Main Commands
 ```bash

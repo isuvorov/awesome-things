@@ -39,9 +39,12 @@ src/
 ├── config.ts             # appName, appVersion, appDescription, defaultPort
 ├── types.ts              # Zod schemas + inferred types
 ├── api/                  # Things3 operations (AppleScript)
-│   ├── todo-ops.ts       # createTodo, listTodos, completeTodo, updateTodo, searchTodos
+│   ├── todo-ops.ts       # createTodo, listTodos, completeTodo, cancelTodo, deleteTodo, updateTodo, searchTodos
 │   ├── when.ts           # Things' "When" field: schedule / evening / clear
-│   ├── project-ops.ts    # createProject, listProjects, getProjectTodos, updateProject
+│   ├── url-scheme.ts     # things:/// fallback — token, reminders, checklist items
+│   ├── batch.ts          # runBatch — one todo op applied to an array of ids
+│   ├── project-ops.ts    # createProject, listProjects, getProjectTodos, updateProject, deleteProject
+│   ├── area-ops.ts       # getAreaTodos — todos sitting directly in an area
 │   ├── list-ops.ts       # listTags, listAreas
 │   └── move-ops.ts       # moveTodo, moveTodoToProject, moveTodoToArea, moveProjectToArea, removeTodoFromProject, removeProjectFromArea
 ├── server/               # HTTP server internals
@@ -59,7 +62,7 @@ src/
     ├── applescript.ts    # AppleScript execution + escaping
     ├── auth.ts           # Token generation, Bearer / path-token checks
     ├── create-server.ts  # Bun.serve / node:http wrapper with error handling
-    ├── mcp-server.ts     # MCP tool registration (17 tools)
+    ├── mcp-server.ts     # MCP tool registration (21 tools)
     ├── openapi.ts        # OpenAPI spec, Swagger UI, home page
     └── tunnel.ts         # Tunnel providers: localtunnel, ngrok, frp
 tests/
@@ -135,7 +138,44 @@ bun run release            # Build + test + semantic-release + npm publish
 - `capitalize(s)` — capitalizes first letter
 
 ### Operations (`api/*.ts`)
-17 operations grouped by domain. Each takes typed args validated by a Zod schema.
+21 operations grouped by domain. Each takes typed args validated by a Zod schema.
+
+**Completing is not deleting.** `complete_todo` moves a todo to the Logbook as *done* —
+using it to get rid of a mistake fills the Logbook with work nobody did. Three separate verbs:
+
+| Verb | AppleScript | Where the todo ends up |
+|------|-------------|------------------------|
+| `completeTodo` | `set status to completed` | Logbook, as done |
+| `cancelTodo` | `set status to canceled` | Logbook, as cancelled |
+| `deleteTodo` | `move ... to list "Trash"` | Trash |
+
+`deleteProject` trashes the project along with its todos — `removeProjectFromArea` only detaches it.
+
+### Batch (`api/batch.ts`)
+Every todo-targeting operation accepts `ids: string[]` next to `id` / `name`. `runBatch` applies the
+single-todo path once per id, sequentially (Things3 answers Apple Events one at a time) and never
+aborts on the first failure: the result carries `ids` (the ones that worked) and `results`
+(per-id `{ ok, message }`).
+
+### Area todos (`api/area-ops.ts`)
+Things3 has no `every to do of area "X"` — it fails with -1728, exactly like
+`every project of area "X"`. `getAreaTodos` scans the built-in lists, filters by area name and
+de-duplicates by id (Anytime overlaps Today and Upcoming). Todos inside a project have no area of
+their own, so they are not returned — use `listProjects({ area })` + `getProjectTodos`.
+
+### URL scheme (`api/url-scheme.ts`)
+Three things the Things3 AppleScript dictionary does not expose at all: "This Evening", reminder
+times and checklist items. They go through `things:///update`, which needs
+`AWESOME_THINGS_URL_TOKEN` (Things → Settings → General). Without the token those calls throw with
+an explanation instead of silently doing nothing.
+
+### Not supported by Things3
+Not gaps in this package — neither AppleScript nor the URL scheme can express them:
+
+| Feature | Why | Workaround |
+|---------|-----|------------|
+| `repeat` / recurring todos | No `repetition rule` property, no URL-scheme parameter | Set Repeat by hand in Things |
+| Headings inside a project | No `heading` class in the dictionary | `things:///json` with `{"type":"heading"}` items |
 
 ### Tunneling (`utils/tunnel.ts`)
 Three providers for exposing the local HTTP server remotely:
@@ -151,6 +191,25 @@ CLI flag: `--tunnel`, `--tunnel=ngrok`, `--tunnel=frp`. Also via env: `AWESOME_T
 - **CLI** (`cli.ts`) — `things add "Buy milk"`
 - **HTTP server** (`server.ts`) — `curl http://localhost:32123/api/todos`
 - **Aggregator** (`index.ts`) — re-exports everything from `api.ts`
+
+## macOS permissions
+
+AppleScript is the only way to drive Things3, and macOS gates it twice:
+
+1. **Things3 must be running.** A stopped app hands out no scripting dictionary.
+2. **The host process needs Automation access** to Things3 — System Settings → Privacy &
+   Security → Automation. The permission belongs to the app that *launched* the process
+   (Terminal, iTerm, your editor, the agent runtime), not to `node`.
+
+Without the dictionary, AppleScript stops recognising Things3's terms: `to do` is no longer a
+class, `projects` becomes an undefined variable, and every call fails at once with -2740 / -2741 /
+-1743. `isTerminologyFailure()` in `src/utils/applescript.ts` detects that and explains the real
+cause instead of forwarding the raw osascript text.
+
+**Sandboxed environments** (agent runtimes, CI, anything without Apple Events access) cannot reach
+Things3 at all: even `osacompile` fails with -2741, so integration behaviour cannot be verified
+there. `open things:///...` may still work, since that is a URL hand-off rather than an Apple
+Event. Unit tests mock `execute()` and run anywhere.
 
 ## Lint
 
@@ -174,10 +233,10 @@ GitHub Actions runs on **macOS** (required for AppleScript):
 
 ## Size Limits
 
-| Entry              | Limit | Note                         |
-|--------------------|-------|------------------------------|
-| `lib/index.js`     | 4 KB  | Main API (zod ignored)       |
-| `lib/applescript.js` | 1 KB | AppleScript utilities       |
+| Entry              | Limit  | Note                         |
+|--------------------|--------|------------------------------|
+| `lib/index.js`     | 6 KB   | Main API (zod ignored)       |
+| `lib/utils/applescript.js` | 1.5 KB | AppleScript utilities |
 
 ## Package Exports
 

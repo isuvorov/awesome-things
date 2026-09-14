@@ -40,9 +40,12 @@ src/
 ├── config.ts             # appName, appVersion, appDescription, defaultPort
 ├── types.ts              # Zod schemas + inferred types
 ├── api/                  # Things3 operations (AppleScript)
-│   ├── todo-ops.ts       # Todo operations (create, list, complete, update, search)
+│   ├── todo-ops.ts       # Todo operations (create, list, complete, cancel, delete, update, search)
 │   ├── when.ts           # Things' "When" field (schedule) — not the deadline
-│   ├── project-ops.ts    # Project operations (create, list, get todos)
+│   ├── url-scheme.ts     # things:/// fallback — evening, reminders, checklists
+│   ├── batch.ts          # runBatch — one todo op applied to an array of ids
+│   ├── project-ops.ts    # Project operations (create, list, get todos, delete)
+│   ├── area-ops.ts       # Todos sitting directly in an area
 │   ├── list-ops.ts       # Tags and areas listing
 │   └── move-ops.ts       # Move and remove operations
 ├── server/               # HTTP server internals
@@ -64,11 +67,24 @@ src/
 - `GET /mcp` answers `405` on purpose: in stateless mode a server-initiated SSE stream would hang forever
 
 ## Key Architecture
-- **17 tools** for managing Things3: todos, projects, tags, areas, move/remove
+- **21 tools** for managing Things3: todos, projects, tags, areas, move/remove/delete
 - **AppleScript** — only way to programmatically control Things3 on macOS
 - **4 interfaces**: JS/TS API (`api.ts`), MCP server (`mcp.ts`), CLI (`cli.ts`), HTTP API (`server.ts`)
-- All operations identify todos/projects by **name** (not ID)
+- Todos/projects are addressed by **id or name**; todo ops also take `ids` for batches
 - Zod schemas validate all inputs
+
+## Todo Semantics Rules
+- **Completing is not deleting.** `complete_todo` → Logbook as *done*; `cancel_todo` → Logbook as
+  *cancelled*; `delete_todo` → Trash (`move ... to list "Trash"`). Never use complete to get rid of
+  a todo — the Logbook then claims work nobody did
+- Every todo operation takes `ids: string[]`; `runBatch` (`src/api/batch.ts`) runs them sequentially
+  and reports per-id failures instead of aborting
+- Evening, reminder times (`when` with `@HH:MM`) and checklists only exist in the Things URL scheme
+  and need `AWESOME_THINGS_URL_TOKEN` — see `src/api/url-scheme.ts`
+- **Not supported by Things3 itself**: `repeat` / recurring todos, and headings inside a project.
+  Neither AppleScript nor the URL scheme exposes them — do not "add" them, document the workaround
+- AppleScript needs Things3 running **and** Automation permission for the host process; sandboxed
+  environments fail with -2741 and cannot be used to verify Things3 behaviour
 
 ## Dependencies
 - `@modelcontextprotocol/sdk` — MCP protocol for AI integrations

@@ -21,7 +21,7 @@
 **📦 JS/TS API** — use Things3 as a fully-typed library <br/>
 **🔗 Built-in tunnels** — expose your Mac via localtunnel, ngrok or frp <br/>
 **🔐 Bearer-token auth** — protect remote access out of the box <br/>
-**✅ 17 operations** — todos, projects, tags, areas, move & remove <br/>
+**✅ 21 operations** — todos, projects, tags, areas, move, delete & batch <br/>
 **🍏 AppleScript-native** — talks to Things3 directly, validated with Zod <br/>
 
 ---
@@ -148,8 +148,14 @@ things list              # today (default)
 things list inbox
 things list today --status open
 
-# Complete a todo (by name or --id)
-things done "Buy milk"
+# Finish a todo — three different things (by name or --id)
+things done "Buy milk"                  # done      → Logbook, as completed
+things cancel "Buy milk"                # cancelled → Logbook, will not happen
+things rm "Buy milk"                    # deleted   → Trash (alias: things trash)
+
+# Batch: the same operation over several ids in one go
+things rm --ids ABC123 DEF456 GHI789
+things done --ids ABC123 DEF456
 
 # Update a todo
 things update "Submit report" --new-name "Submit Q1 report"
@@ -157,19 +163,27 @@ things update "Submit report" --new-due 2026-03-15
 things update "Submit report" --new-due none      # clear the deadline
 things update "Submit report" --new-when 2026-09-12       # YYYY-MM-DD[@HH:MM] | today | tomorrow | evening
 things update "Submit report" --new-when none            # clear the When date
+things update --ids ABC123 DEF456 --new-tags work        # same update, several todos
+
+# Checklists (need AWESOME_THINGS_URL_TOKEN)
+things add "Pack" --checklist Passport Tickets Charger
+things update "Pack" --new-checklist Passport Tickets
 
 # Search
 things search "report"
 
 # Projects
 things project add "Q1 Planning" --area Work
+things project add "Trip" --todo "Book flight" --todo "Pack"   # project + its todos in one call
 things project update "Q1 Planning" --new-notes "See https://example.com/roadmap"
 things project list
 things project todos "Q1 Planning"
+things project rm "Q1 Planning"          # project + its todos → Trash
 
 # Tags & areas
 things tags
 things areas
+things area Work                         # todos sitting directly in an area (no project)
 
 # Move (destination: inbox | today | evening | anytime | upcoming | someday)
 things move todo "Buy milk" today
@@ -207,12 +221,16 @@ The server also serves a home page at `/`, a health check at `/health`, **Swagge
 | `POST` | `/api/todos` | Create todo |
 | `PUT` | `/api/todos` | Update todo |
 | `POST` | `/api/todos/complete` | Complete todo |
+| `POST` | `/api/todos/cancel` | Cancel todo |
+| `POST` | `/api/todos/delete` | Delete todo (→ Trash) |
 | `GET` | `/api/todos/search?q=...` | Search todos |
 | `GET` | `/api/projects?area=...` | List projects |
 | `POST` | `/api/projects` | Create project |
+| `POST` | `/api/projects/delete` | Delete project (→ Trash) |
 | `GET` | `/api/projects/:name/todos` | Project todos |
 | `GET` | `/api/tags` | All tags |
 | `GET` | `/api/areas` | All areas |
+| `GET` | `/api/areas/:name/todos` | Todos directly in an area |
 | `POST` | `/api/move/todo` | Move todo to list |
 | `POST` | `/api/move/todo-to-project` | Move todo to project |
 | `POST` | `/api/move/todo-to-area` | Move todo to area |
@@ -282,7 +300,7 @@ FRP_SERVER_ADDR=frp.example.com things server --tunnel=frp --domain myapp
 | `AWESOME_THINGS_TOKEN` | Bearer token for the HTTP/MCP API | random per start |
 | `AWESOME_THINGS_TUNNEL` | Tunnel provider (`localtunnel`, `ngrok`, `frp`) | — |
 | `AWESOME_THINGS_DOMAIN` | Tunnel domain / subdomain | — |
-| `AWESOME_THINGS_URL_TOKEN` | Things URL-scheme token — needed for `evening` and for reminder times (`--when 2026-09-12@11:00`). Things → Settings → General | — |
+| `AWESOME_THINGS_URL_TOKEN` | Things URL-scheme token — needed for `evening`, reminder times (`--when 2026-09-12@11:00`) and checklist items. Things → Settings → General | — |
 | `NGROK_AUTHTOKEN` | ngrok auth token | — |
 | `FRP_SERVER_ADDR` | frp server address (required for frp) | — |
 | `FRP_SERVER_PORT` | frp server port | `7000` |
@@ -306,12 +324,29 @@ AppleScript is the only programmatic interface to Things3 on macOS. Each operati
 | `src/mcp.ts` | MCP server (stdio transport) |
 | `src/server.ts` | HTTP REST API + MCP-over-HTTP (`Bun.serve`) |
 | `src/cli.ts` | CLI (yargs) — `things` / `thi` / `awesome-things` |
-| `src/api/*.ts` | The 17 todo / project / list / move operations |
+| `src/api/*.ts` | The 21 todo / project / area / list / move operations |
 | `src/utils/applescript.ts` | `execute`, `tellThings`, `quoteString` helpers |
 | `src/utils/tunnel.ts` | localtunnel / ngrok / frp providers |
 | `src/utils/auth.ts` | Bearer-token resolution & checks |
 
-All operations identify todos and projects **by name** (or by `id` where supported), and every input is validated with a Zod schema.
+All operations identify todos and projects **by name** or by `id`, and every input is validated with a Zod schema. Todo operations also accept `ids: string[]` and then run as a batch.
+
+**Done, cancelled and deleted are three different things.** `completeTodo` puts a todo in the
+Logbook as *done* — do not use it to get rid of a todo you created by mistake, or the Logbook ends
+up full of work nobody did. Use `cancelTodo` when the work will not happen, and `deleteTodo` /
+`deleteProject` (which move the item to the **Trash**) when it should never have existed.
+
+**What Things3 itself cannot do:** recurring todos (`repeat`) and headings inside a project are
+exposed by neither AppleScript nor the URL scheme, so this package cannot set them — Repeat has to
+be set by hand in Things, and headings need a `things:///json` payload.
+
+### macOS permissions
+
+Things3 must be **running**, and the app that launched the process (Terminal, your editor, an agent
+runtime) needs **Automation** access to Things3 in System Settings → Privacy & Security →
+Automation. Without it macOS withholds the scripting dictionary and every call fails with
+`-2740` / `-2741` / `-1743` — the package detects that and says so instead of forwarding raw
+AppleScript noise. Sandboxed environments without Apple Events access cannot reach Things3 at all.
 
 ---
 
@@ -320,7 +355,14 @@ All operations identify todos and projects **by name** (or by `id` where support
 ### Core functions
 
 ```ts
-import { createTodo, searchTodos, updateTodo, createProject, moveTodoToProject } from 'awesome-things';
+import {
+  createTodo,
+  searchTodos,
+  updateTodo,
+  createProject,
+  moveTodoToProject,
+  deleteTodo,
+} from 'awesome-things';
 
 // Create with all options
 await createTodo({
@@ -340,30 +382,45 @@ const results = await searchTodos({ query: 'report' });
 // Update a todo
 await updateTodo({ name: 'Submit report', new_due_date: '2026-03-15' });
 
-// Create a project and move a todo into it
-await createProject({ name: 'Q1 Planning', area: 'Work' });
+// Create a project together with its todos
+await createProject({
+  name: 'Q1 Planning',
+  area: 'Work',
+  todos: ['Draft the roadmap', { name: 'Review with the team', when: 'tomorrow' }],
+});
 await moveTodoToProject({ todo_name: 'Submit report', project_name: 'Q1 Planning' });
+
+// Trash seven todos in one call — and see which ones failed
+const result = await deleteTodo({ ids: ['ABC', 'DEF', 'GHI'] });
+result.ids;      // the ones that worked
+result.results;  // [{ id, ok, message }, ...]
 ```
 
 <details>
-<summary><strong>All 17 functions</strong></summary>
+<summary><strong>All 21 functions</strong></summary>
 
-- `createTodo({ name, notes?, due_date?, when?, tags?, list?, project?, area? })` — create a todo
+Every todo function accepts `ids: string[]` instead of `id` to run as a batch.
+
+- `createTodo({ name, notes?, due_date?, when?, tags?, list?, project?, area?, checklist? })` — create a todo
 - `listTodos({ list, status? })` — list todos
-- `completeTodo({ name?, id? })` — complete a todo
-- `updateTodo({ name?, id?, new_name?, new_notes?, new_due_date?, new_when?, new_tags? })` — update a todo
+- `completeTodo({ name?, id?, ids? })` — mark as done (→ Logbook)
+- `cancelTodo({ name?, id?, ids? })` — mark as cancelled (→ Logbook)
+- `deleteTodo({ name?, id?, ids? })` — delete (→ Trash)
+- `updateTodo({ name?, id?, ids?, new_name?, new_notes?, new_due_date?, new_when?, new_tags?, new_checklist? })` — update a todo
 - `searchTodos({ query })` — search todos by name
-- `createProject({ name, notes?, area? })` — create a project
+- `createProject({ name, notes?, area?, todos? })` — create a project, optionally with its todos
 - `updateProject({ project_name, new_name?, new_notes?, new_due_date?, new_tags?, new_area? })` — update a project
+- `deleteProject({ project_name })` — delete a project and its todos (→ Trash)
 - `listProjects({ area? })` — list projects
 - `getProjectTodos({ project_name, status? })` — get project todos
+- `getAreaTodos({ area_name, status? })` — todos sitting directly in an area
 - `listTags()` — list all tags
 - `listAreas()` — list all areas
-- `moveTodo({ todo_name?, id?, destination })` — move todo to a list
-- `moveTodoToProject({ todo_name?, id?, project_name })` — move todo to a project
-- `moveTodoToArea({ todo_name?, id?, area_name })` — move todo to an area
+- `moveTodo({ todo_name?, id?, ids?, destination })` — move todo to a list
+- `moveTodoToProject({ todo_name?, id?, ids?, project_name })` — move todo to a project
+- `moveTodoToArea({ todo_name?, id?, ids?, area_name })` — move todo to an area
 - `moveProjectToArea({ project_name, area_name })` — move project to an area
-- `removeTodoFromProject({ todo_name?, id? })` — remove todo from its project
+- `removeTodoFromProject({ todo_name?, id?, ids? })` — remove todo from its project
 - `removeProjectFromArea({ project_name })` — remove project from its area
 
 </details>

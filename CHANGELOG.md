@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/isuvorov/awesome-things/compare/v1.4.0...v1.5.0) (2026-10-03)
+
+
+### Features
+
+* **daemon:** make the bare daemon command ensure it runs and attach to the logs ([ec5a18f](https://github.com/isuvorov/awesome-things/commit/ec5a18f613168037218bb521a3693f0be740ed1b))
+
 # [1.4.0](https://github.com/isuvorov/awesome-things/compare/v1.3.0...v1.4.0) (2026-10-03)
 
 

@@ -100,7 +100,7 @@ src/
 │   ├── paths.ts          # Label, plist path, log paths, launchctl service id
 │   ├── plist.ts          # Pure plist/env/argv builders
 │   ├── launchctl.ts      # bootstrap / bootout / kickstart / print + output parsing
-│   ├── ops.ts            # install, uninstall, start, stop, restart, status
+│   ├── ops.ts            # up/planUp, install, uninstall, start, stop, restart, status
 │   ├── logs.ts           # tail / follow / clear the log files
 │   └── format.ts         # Human-readable daemon report
 ├── api/                  # Things3 operations (AppleScript)
@@ -131,6 +131,11 @@ src/
 - `GET /mcp` answers `405` on purpose: in stateless mode a server-initiated SSE stream would hang forever
 
 ## Daemon Rules (`awesome-things daemon`)
+- **`daemon` with no subcommand is `daemon up`** — `planUp()` in `ops.ts` decides: no plist →
+  install, a plist flag passed → reinstall, `/health` already answers → **do nothing** (a restart
+  would hand the frp domain to a new process), launchd runs it but nothing answers → restart,
+  installed and down → start. It then attaches to the logs, except under `--json` or a non-TTY
+  stdout. Starting it is still the user's step, never the agent's
 - **The token must be pinned into the plist.** A daemonized server that mints a random token has
   nowhere to print it — `install` takes `--token`, `AWESOME_THINGS_TOKEN`, the already-installed
   agent's token, or generates one, and the plist is `chmod 600` because it holds that token

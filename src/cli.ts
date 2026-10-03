@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import yargs from 'yargs';
+import yargs, { type Argv } from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { getAreaTodos } from './api/area-ops.js';
 import { listAreas, listTags } from './api/list-ops.js';
@@ -28,8 +28,9 @@ import {
   updateTodo,
 } from './api/todo-ops.js';
 import { appName, appVersion } from './config.js';
+import type { DaemonResult, InstallOptions } from './daemon/ops.js';
 import { errorMessage } from './server/errors.js';
-import { bold, cyan, dim, green, yellow } from './server/logger.js';
+import { bold, cyan, dim, green, isInteractive, yellow } from './server/logger.js';
 import { type FormatStyle, type Formatters, getFormatters } from './tools/formatters.js';
 
 const LIST_CHOICES = ['inbox', 'today', 'anytime', 'upcoming', 'someday', 'logbook'] as const;
@@ -40,7 +41,16 @@ const STATUS_CHOICES = ['open', 'completed', 'all'] as const;
 let useJson = false;
 let fmt: Formatters = getFormatters('pretty');
 
-async function run(fn: () => Promise<any>, format: (r: any) => string) {
+/**
+ * `after` runs once the result is printed, for handlers that keep working afterwards —
+ * `daemon` attaches to the logs. It must not widen the return type: a yargs handler has
+ * to stay `Promise<void>`, or every `.command()` below falls back to the options overload.
+ */
+async function run(
+  fn: () => Promise<any>,
+  format: (r: any) => string,
+  after?: (result: any) => Promise<void>,
+): Promise<void> {
   try {
     const result = await fn();
     if (useJson) {
@@ -48,10 +58,41 @@ async function run(fn: () => Promise<any>, format: (r: any) => string) {
     } else {
       console.log(format(result));
     }
+    if (after) await after(result);
   } catch (err) {
     console.error('Error:', errorMessage(err));
     process.exit(1);
   }
+}
+
+/**
+ * The plist settings, shared by `daemon` and `daemon install`. Generic over the inherited
+ * options: a plain `Argv` would erase them and break the whole `.command()` chain below.
+ */
+const daemonConfigOptions = <T>(y: Argv<T>) =>
+  y
+    .option('port', { type: 'number', alias: 'p', describe: 'Port to listen on' })
+    .option('token', {
+      type: 'string',
+      describe:
+        'Bearer token to pin into the agent (default: AWESOME_THINGS_TOKEN env or generated). Use --no-token to disable auth.',
+    })
+    .option('tunnel', {
+      choices: ['localtunnel', 'ngrok', 'frp', 'none'] as const,
+      describe: 'Tunnel provider (default: AWESOME_THINGS_TUNNEL env)',
+    })
+    .option('domain', { type: 'string', describe: 'Tunnel domain' });
+
+function daemonConfig(argv: Record<string, unknown>): InstallOptions {
+  // `--no-token` arrives as `token: false`, which no string cast would survive.
+  const noToken = argv.token === false || argv.noToken === true;
+  return {
+    port: argv.port as number | undefined,
+    token: typeof argv.token === 'string' ? argv.token : undefined,
+    noToken: noToken || undefined,
+    tunnel: argv.tunnel as string | undefined,
+    domain: argv.domain as string | undefined,
+  };
 }
 
 yargs(hideBin(process.argv))
@@ -216,40 +257,43 @@ yargs(hideBin(process.argv))
     (y) =>
       y
         .command(
+          ['$0', 'up'],
+          'Make sure it runs: installs it on the first run, starts it when down, then follows the logs',
+          (y) =>
+            daemonConfigOptions(y).option('attach', {
+              type: 'boolean',
+              default: true,
+              describe: 'Follow the logs once it is up (--no-attach to only print the status)',
+            }),
+          async (argv) => {
+            const { upDaemon } = await import('./daemon/ops.js');
+            const { formatDaemonResult } = await import('./daemon/format.js');
+            await run(
+              () => upDaemon(daemonConfig(argv)),
+              formatDaemonResult,
+              async (result: DaemonResult) => {
+                // Attaching is for a human at a terminal — piped or JSON output stays finite.
+                if (!result.ok || !argv.attach || useJson || !isInteractive) return;
+                const { runLogs } = await import('./daemon/logs.js');
+                process.exit(await runLogs({ follow: true, lines: 20 }));
+              },
+            );
+          },
+        )
+        .command(
           'install',
           'Install the launchd agent and start it',
           (y) =>
-            y
-              .option('port', { type: 'number', alias: 'p', describe: 'Port to listen on' })
-              .option('token', {
-                type: 'string',
-                describe:
-                  'Bearer token to pin into the agent (default: AWESOME_THINGS_TOKEN env or generated). Use --no-token to disable auth.',
-              })
-              .option('tunnel', {
-                choices: ['localtunnel', 'ngrok', 'frp', 'none'] as const,
-                describe: 'Tunnel provider (default: AWESOME_THINGS_TUNNEL env)',
-              })
-              .option('domain', { type: 'string', describe: 'Tunnel domain' })
-              .option('start', {
-                type: 'boolean',
-                default: true,
-                describe: 'Start right after installing (--no-start to only write the plist)',
-              }),
+            daemonConfigOptions(y).option('start', {
+              type: 'boolean',
+              default: true,
+              describe: 'Start right after installing (--no-start to only write the plist)',
+            }),
           async (argv) => {
-            const noToken = (argv.token as unknown) === false || (argv as any).noToken === true;
             const { installDaemon } = await import('./daemon/ops.js');
             const { formatDaemonResult } = await import('./daemon/format.js');
             await run(
-              () =>
-                installDaemon({
-                  port: argv.port,
-                  token: typeof argv.token === 'string' ? argv.token : undefined,
-                  noToken: noToken || undefined,
-                  tunnel: argv.tunnel as string | undefined,
-                  domain: argv.domain as string | undefined,
-                  start: argv.start as boolean,
-                }),
+              () => installDaemon({ ...daemonConfig(argv), start: argv.start as boolean }),
               formatDaemonResult,
             );
           },
@@ -341,8 +385,7 @@ yargs(hideBin(process.argv))
               }),
             );
           },
-        )
-        .demandCommand(1),
+        ),
     () => {},
   )
 

@@ -47,7 +47,10 @@ export async function runLogs(options: LogsOptions = {}): Promise<number> {
 
   if (isInteractive) {
     for (const file of files) console.log(`  ${dim(`── ${file}`)}`);
-    if (options.follow) console.log(`  ${dim('── following (Ctrl+C to stop)')}`);
+    // "stop" would read as "stop the daemon" — Ctrl+C only ends the tail.
+    if (options.follow) {
+      console.log(`  ${dim('── following (Ctrl+C to detach, the daemon keeps running)')}`);
+    }
     console.log();
   }
 

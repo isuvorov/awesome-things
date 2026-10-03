@@ -7,7 +7,7 @@ import {
   type RunResult,
 } from '../src/daemon/launchctl.js';
 import { buildTailArgs, logFiles } from '../src/daemon/logs.js';
-import type { DaemonResult } from '../src/daemon/ops.js';
+import { type DaemonResult, hasConfigOverrides, planUp } from '../src/daemon/ops.js';
 import { daemonLabel, daemonPaths, serviceId, serviceTarget } from '../src/daemon/paths.js';
 import {
   buildPath,
@@ -293,6 +293,49 @@ const SAMPLE: DaemonResult = {
   hints: [],
 };
 
+describe('planUp', () => {
+  const state = { installed: true, running: true, healthy: true };
+
+  test('installs when there is no plist yet', () => {
+    expect(planUp({ ...state, installed: false, running: false, healthy: false })).toBe('install');
+  });
+
+  test('leaves an answering server alone — a restart would drop the tunnel domain', () => {
+    expect(planUp(state)).toBe('nothing');
+  });
+
+  test('does not touch a healthy server that launchd does not manage', () => {
+    expect(planUp({ ...state, running: false })).toBe('nothing');
+  });
+
+  test('starts an installed daemon that is down', () => {
+    expect(planUp({ ...state, running: false, healthy: false })).toBe('start');
+  });
+
+  test('restarts a job launchd holds but that answers nothing — bootstrap would be a no-op', () => {
+    expect(planUp({ ...state, healthy: false })).toBe('restart');
+  });
+
+  test('reinstalls when a flag would otherwise be silently ignored', () => {
+    expect(planUp({ ...state, overrides: true })).toBe('install');
+  });
+});
+
+describe('hasConfigOverrides', () => {
+  test('ignores an empty invocation', () => {
+    expect(hasConfigOverrides({})).toBe(false);
+    expect(hasConfigOverrides({ start: true })).toBe(false);
+  });
+
+  test('catches every setting that lives in the plist', () => {
+    expect(hasConfigOverrides({ port: 41234 })).toBe(true);
+    expect(hasConfigOverrides({ token: 'x' })).toBe(true);
+    expect(hasConfigOverrides({ noToken: true })).toBe(true);
+    expect(hasConfigOverrides({ tunnel: 'frp' })).toBe(true);
+    expect(hasConfigOverrides({ domain: 'things.example.com' })).toBe(true);
+  });
+});
+
 describe('formatState', () => {
   test('separates "launchd runs it" from "it actually answers"', () => {
     expect(stripAnsi(formatState(SAMPLE))).toBe('running (pid 4242) · healthy');
@@ -356,6 +399,10 @@ describe('formatDaemonResult', () => {
 
   test('marks a failed action', () => {
     expect(stripAnsi(formatDaemonResult({ ...SAMPLE, ok: false }))).toContain('— failed');
+  });
+
+  test('names the bare `daemon` action', () => {
+    expect(stripAnsi(formatDaemonResult({ ...SAMPLE, action: 'up' }))).toContain('daemon up');
   });
 
   test('offers to reinstall after an uninstall', () => {

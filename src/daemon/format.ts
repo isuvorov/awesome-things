@@ -30,6 +30,7 @@ const HEADLINES: Record<DaemonActionName, string> = {
   stop: 'daemon stopped',
   restart: 'daemon restarted',
   status: 'daemon status',
+  up: 'daemon up',
 };
 
 /** One line that answers "is it actually working?" — the only line most runs need. */

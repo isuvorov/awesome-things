@@ -30,7 +30,14 @@ const LOG_ROTATE_LIMIT = 10 * 1024 * 1024;
 const HEALTH_TIMEOUT_MS = 10_000;
 const HEALTH_INTERVAL_MS = 250;
 
-export type DaemonActionName = 'install' | 'uninstall' | 'start' | 'stop' | 'restart' | 'status';
+export type DaemonActionName =
+  | 'install'
+  | 'uninstall'
+  | 'start'
+  | 'stop'
+  | 'restart'
+  | 'status'
+  | 'up';
 
 export interface DaemonLogInfo {
   out: string;
@@ -68,6 +75,17 @@ export interface InstallOptions {
   domain?: string;
   /** Install the plist but leave the job stopped. */
   start?: boolean;
+}
+
+/** Any of these means the plist has to be rewritten — `start` would silently ignore them. */
+export function hasConfigOverrides(options: InstallOptions): boolean {
+  return (
+    options.port !== undefined ||
+    options.token !== undefined ||
+    options.noToken === true ||
+    options.tunnel !== undefined ||
+    options.domain !== undefined
+  );
 }
 
 export interface UninstallOptions {
@@ -371,4 +389,65 @@ export async function daemonStatus(): Promise<DaemonResult> {
     result.hints.push(`Not answering? ${APP_ID} daemon logs --err`);
   }
   return result;
+}
+
+export type UpPlan = 'install' | 'start' | 'restart' | 'nothing';
+
+export interface UpStateInput {
+  installed: boolean;
+  running: boolean;
+  healthy: boolean;
+  /** A --port/--token/--tunnel/--domain flag was passed, so the plist must be rewritten. */
+  overrides?: boolean;
+}
+
+/**
+ * What the bare `daemon` command has to do, given the state it found.
+ *
+ * `healthy` wins over everything: something already serves the port, and restarting it
+ * would hand the tunnel domain to a new process for no reason. `running && !healthy` has
+ * to be a restart rather than a start — launchd already holds the job, so `bootstrap`
+ * would return "already loaded" and change nothing.
+ */
+export function planUp({ installed, running, healthy, overrides }: UpStateInput): UpPlan {
+  if (!installed || overrides) return 'install';
+  if (healthy) return 'nothing';
+  return running ? 'restart' : 'start';
+}
+
+/**
+ * `awesome-things daemon` with no subcommand: install it on the first run, start it when
+ * it is installed but down, and leave an already-answering server completely alone.
+ */
+export async function upDaemon(options: InstallOptions = {}): Promise<DaemonResult> {
+  assertDarwin();
+  const paths = daemonPaths();
+  const stored = await readInstalledPlist(paths.plist);
+  const port = options.port ?? stored.port ?? defaultPort;
+  const state = await printService();
+
+  const plan = planUp({
+    installed: existsSync(paths.plist),
+    running: state.running,
+    healthy: (await probePort(port)) === 'ours',
+    overrides: hasConfigOverrides(options),
+  });
+
+  if (plan === 'install') return { ...(await installDaemon(options)), action: 'up' };
+  if (plan === 'start') return { ...(await startDaemon()), action: 'up' };
+  if (plan === 'restart') return { ...(await restartDaemon()), action: 'up' };
+
+  // Answering but outside launchd means a hand-started server — it will not survive a reboot.
+  const warnings = state.running
+    ? []
+    : [
+        `Port ${port} answers, but launchd does not manage that process — it was started by hand and will not come back after a reboot. Stop it and run "${APP_ID} daemon start".`,
+      ];
+  return buildResult('up', {
+    state,
+    port,
+    healthy: true,
+    warnings,
+    hints: ['Already up — nothing to do.'],
+  });
 }

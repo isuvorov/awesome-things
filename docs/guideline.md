@@ -51,7 +51,7 @@ src/
 │   ├── paths.ts          # daemonLabel, daemonPaths, serviceTarget, serviceId
 │   ├── plist.ts          # buildPlist, collectEnvironment, buildPath, resolveProgramArguments
 │   ├── launchctl.ts      # run, bootstrapService, bootoutService, kickstartService, parseLaunchctlPrint
-│   ├── ops.ts            # installDaemon, uninstallDaemon, start/stop/restartDaemon, daemonStatus
+│   ├── ops.ts            # upDaemon/planUp, installDaemon, uninstallDaemon, start/stop/restartDaemon, daemonStatus
 │   ├── logs.ts           # runLogs, logFiles, buildTailArgs
 │   └── format.ts         # formatDaemonResult, formatState, tildify, formatBytes
 ├── server/               # HTTP server internals
@@ -121,6 +121,7 @@ bun run dev                # Watch mode (tsdown)
 bun run start              # Start MCP server (stdio)
 bun run server             # Start HTTP API server (port 32123)
 bun run cli                # Run CLI
+bun run cli daemon         # Make sure the background agent runs, then follow its logs
 bun run cli daemon install # Install the HTTP server as a launchd background agent
 bun run cli daemon logs -f # Follow the daemon logs
 
@@ -207,8 +208,31 @@ that starts a job at login, keeps it alive and can reach the Aqua session AppleS
 | Stderr | `~/Library/Logs/awesome-things/server.error.log` |
 | Service id | `gui/<uid>/com.isuvorov.awesome-things` |
 
-Subcommands: `install`, `uninstall`, `start`, `stop`, `restart`, `status`, `logs`. All of them
-accept `--json`, because they return a plain `DaemonResult` that `format.ts` renders.
+Subcommands: `up` (the default), `install`, `uninstall`, `start`, `stop`, `restart`, `status`,
+`logs`. All of them accept `--json`, because they return a plain `DaemonResult` that `format.ts`
+renders.
+
+**`things daemon` with no subcommand is the one command to remember.** It makes the daemon run
+from whatever state it is in and then attaches to the logs:
+
+```bash
+things daemon                 # install if needed → start if down → follow the logs
+things daemon --no-attach     # same, but print the status and exit
+things daemon --port 41234    # a plist setting rewrites the agent (see planUp)
+```
+
+`planUp()` in `ops.ts` is the pure decision table behind it:
+
+| Found state | Action | Why |
+|---|---|---|
+| No plist | `install` | First run |
+| A plist setting was passed | `install` | `start` would silently ignore `--port`/`--token`/`--tunnel`/`--domain` |
+| `/health` answers | nothing | A needless restart hands the tunnel domain to a new process |
+| launchd runs it, nothing answers | `restart` | `bootstrap` would return "already loaded" and change nothing |
+| Installed and down | `start` | — |
+
+Attaching is suppressed for `--json` and for a non-TTY stdout, so scripts and pipes still
+terminate. `Ctrl+C` ends the `tail`, never the daemon — which is what the follow banner says.
 
 The design decisions worth knowing:
 

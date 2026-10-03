@@ -25,6 +25,11 @@ and **seizes the production domain**, because frp hands the domain to whoever co
 symptom is maddening: the domain answers, serves the right code, and rejects the correct token,
 because it is now a different process.
 
+`awesome-things daemon install` / `start` / `restart` start that same server through launchd — they
+are the same mistake with a different name, and the agent survives your shell. Write the code, hand
+the command to the user, never run it yourself. `daemon status` and `daemon logs` are read-only and
+safe (the agent sandbox cannot write to `~/Library`, so even `install` fails there with `EPERM`).
+
 The user already runs a server. Use it instead of starting one:
 - `http://localhost:32123`, bearer token in `$AWESOME_THINGS_TOKEN` (already in the shell)
 - `AWESOME_THINGS_URL_TOKEN` is a different thing — the Things URL-scheme token, not for HTTP
@@ -91,6 +96,13 @@ src/
 ├── cli.ts                # CLI (yargs)
 ├── config.ts             # appName, appVersion, appDescription, defaultPort
 ├── types.ts              # Zod schemas + inferred types
+├── daemon/               # launchd background agent (macOS)
+│   ├── paths.ts          # Label, plist path, log paths, launchctl service id
+│   ├── plist.ts          # Pure plist/env/argv builders
+│   ├── launchctl.ts      # bootstrap / bootout / kickstart / print + output parsing
+│   ├── ops.ts            # install, uninstall, start, stop, restart, status
+│   ├── logs.ts           # tail / follow / clear the log files
+│   └── format.ts         # Human-readable daemon report
 ├── api/                  # Things3 operations (AppleScript)
 │   ├── todo-ops.ts       # Todo operations (create, list, complete, cancel, delete, update, search)
 │   ├── when.ts           # Things' "When" field (schedule) — not the deadline
@@ -117,6 +129,23 @@ src/
 - `Bun.serve` always needs an `error()` handler, otherwise Bun prints `error: undefined` and kills the process
 - `idleTimeout: 0` — MCP streams and AppleScript calls outlive Bun's 10s default
 - `GET /mcp` answers `405` on purpose: in stateless mode a server-initiated SSE stream would hang forever
+
+## Daemon Rules (`awesome-things daemon`)
+- **The token must be pinned into the plist.** A daemonized server that mints a random token has
+  nowhere to print it — `install` takes `--token`, `AWESOME_THINGS_TOKEN`, the already-installed
+  agent's token, or generates one, and the plist is `chmod 600` because it holds that token
+- **launchd gives a job almost no environment** — no PATH, no shell profile. `collectEnvironment()`
+  bakes in `PATH` (runtime bin dir first, so `frpc` resolves), `HOME` and the `AWESOME_THINGS_*` /
+  `FRP_*` / `NGROK_AUTHTOKEN` vars. Changing a var means re-running `daemon install`
+- `KeepAlive.SuccessfulExit = false` is deliberate: `startServer()` exits **0** when the port is
+  already held by its own twin, and a plain `KeepAlive` would turn that into a respawn loop
+- `ProgramArguments` is always `[process.execPath, realpath(argv[1]), 'server']` — never the bare
+  bin, whose shebang and exec bit cannot be relied on after `npm link`
+- **Logs are the only UI**: launchd redirects stdout/stderr to `~/Library/Logs/awesome-things/`,
+  `logger.ts` already prints plain unboxed lines when stdout is not a TTY, and `daemon logs -f`
+  tails with `-F` so following survives the 10 MB rotation
+- `daemon status` distinguishes *launchd runs it* (`launchctl print`) from *it answers*
+  (`probePort` → `/health`); both are needed, either one alone lies
 
 ## Key Architecture
 - **21 tools** for managing Things3: todos, projects, tags, areas, move/remove/delete

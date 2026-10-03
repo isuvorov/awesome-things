@@ -47,6 +47,13 @@ src/
 │   ├── area-ops.ts       # getAreaTodos — todos sitting directly in an area
 │   ├── list-ops.ts       # listTags, listAreas
 │   └── move-ops.ts       # moveTodo, moveTodoToProject, moveTodoToArea, moveProjectToArea, removeTodoFromProject, removeProjectFromArea
+├── daemon/               # Background launchd agent (macOS)
+│   ├── paths.ts          # daemonLabel, daemonPaths, serviceTarget, serviceId
+│   ├── plist.ts          # buildPlist, collectEnvironment, buildPath, resolveProgramArguments
+│   ├── launchctl.ts      # run, bootstrapService, bootoutService, kickstartService, parseLaunchctlPrint
+│   ├── ops.ts            # installDaemon, uninstallDaemon, start/stop/restartDaemon, daemonStatus
+│   ├── logs.ts           # runLogs, logFiles, buildTailArgs
+│   └── format.ts         # formatDaemonResult, formatState, tildify, formatBytes
 ├── server/               # HTTP server internals
 │   ├── errors.ts         # errorMessage, formatError, isClientAbort
 │   ├── guards.ts         # installProcessGuards — unhandledRejection / uncaughtException
@@ -69,6 +76,7 @@ tests/
 ├── api.test.ts           # API layer tests
 ├── applescript.test.ts   # Unit tests for pure AppleScript utility functions
 ├── auth.test.ts          # Token / auth helpers
+├── daemon.test.ts        # plist/env builders, launchctl parsing, log args, daemon report
 ├── errors.test.ts        # Error formatting, process guards, logError
 ├── formatters.test.ts    # CLI formatters
 ├── info.test.ts          # Install-source detection and info formatting
@@ -113,6 +121,8 @@ bun run dev                # Watch mode (tsdown)
 bun run start              # Start MCP server (stdio)
 bun run server             # Start HTTP API server (port 32123)
 bun run cli                # Run CLI
+bun run cli daemon install # Install the HTTP server as a launchd background agent
+bun run cli daemon logs -f # Follow the daemon logs
 
 # Testing
 bun run test               # Full: lint + types + unit tests + size-limit
@@ -184,6 +194,66 @@ Three providers for exposing the local HTTP server remotely:
 - **frp** — spawns `frpc` binary, requires `FRP_SERVER_ADDR` env, self-hosted
 
 CLI flag: `--tunnel`, `--tunnel=ngrok`, `--tunnel=frp`. Also via env: `AWESOME_THINGS_TUNNEL`.
+
+### Daemon (`daemon/*.ts`)
+
+`things daemon` runs the HTTP server as a **launchd user agent** — the only supervisor on macOS
+that starts a job at login, keeps it alive and can reach the Aqua session AppleScript needs.
+
+| Piece | Path |
+|---|---|
+| Agent | `~/Library/LaunchAgents/com.isuvorov.awesome-things.plist`, mode `600` |
+| Stdout | `~/Library/Logs/awesome-things/server.log` |
+| Stderr | `~/Library/Logs/awesome-things/server.error.log` |
+| Service id | `gui/<uid>/com.isuvorov.awesome-things` |
+
+Subcommands: `install`, `uninstall`, `start`, `stop`, `restart`, `status`, `logs`. All of them
+accept `--json`, because they return a plain `DaemonResult` that `format.ts` renders.
+
+The design decisions worth knowing:
+
+- **The token is pinned into the plist.** A background server cannot print a freshly generated
+  token anywhere the user will see it, so `install` resolves it once — `--token`, then
+  `AWESOME_THINGS_TOKEN`, then the token in an already-installed agent, then a generated one —
+  and writes the plist with mode `600`. `--no-token` also drops an inherited token from the
+  environment and appends `--no-token` to the arguments, since env cannot express "no auth".
+- **launchd starts a job with almost no environment.** `collectEnvironment()` bakes in `HOME`,
+  a `PATH` that begins with the runtime's own bin dir (so `frpc` and `bun` resolve) and every
+  `AWESOME_THINGS_*`, `AWESOME_THINGS_FRP_*`, `FRP_*` and `NGROK_AUTHTOKEN` variable found in the
+  installing shell. Unrelated variables are never copied. Changing a variable means re-running
+  `daemon install`.
+- **`KeepAlive` is `{ SuccessfulExit: false }`, not `true`.** `startServer()` exits **0** when it
+  finds the port already served by its own twin; an unconditional `KeepAlive` would respawn it
+  every 10 seconds forever. A crash still restarts, throttled by `ThrottleInterval: 10`.
+- **`ProgramArguments` is `[process.execPath, realpath(argv[1]), 'server']`.** Never the bin
+  itself: after `npm link` it is a symlink, and its exec bit and shebang cannot be trusted —
+  launchd would fail with a bare "Operation not permitted".
+- **`install` refuses to start over a running server.** If `/health` on the port already answers
+  with this app, the plist is written but nothing is bootstrapped, and the result carries a
+  warning. This is what keeps a daemon install from stealing an frp domain from a server the user
+  started by hand.
+- **Two independent truths in `status`.** `launchctl print` says whether launchd runs the job;
+  `probePort()` says whether it answers `/health`. A job can be `running` and dead to HTTP (for
+  example while macOS waits for Automation approval), so both are reported.
+
+**Logs are the only UI a daemon has.** `logger.ts` already degrades to plain, ANSI-free lines when
+stdout is not a TTY, so the files stay readable. `daemon logs` shells out to `tail` with `-F`
+(not `-f`), which survives the 10 MB rotation to `.1` performed on install and restart:
+
+```bash
+things daemon logs                 # last 50 lines of both streams
+things daemon logs -f              # follow live
+things daemon logs -f --err        # errors only
+things daemon logs -n 200 --out    # more request history
+things daemon logs --clear         # truncate
+```
+
+> `-f` is also the global alias for `--format`. A middleware with `applyBeforeValidation` resets a
+> non-string `--format` to `pretty`, otherwise yargs rejects `daemon logs -f` on its choices check.
+
+Everything except the actual `launchctl`/`tail` calls is a pure function and covered by
+`tests/daemon.test.ts`. The agent sandbox cannot write to `~/Library`, so `install` can only be
+verified by the user in a real terminal.
 
 ### Interfaces
 - **JS/TS API** (`api.ts`) — `import { createTodo } from 'awesome-things'`

@@ -254,6 +254,53 @@ curl "http://localhost:32123/api/todos/search?q=report"
 curl http://localhost:32123/api/tags -H "Authorization: Bearer <token>"
 ```
 
+### As a background daemon
+
+`things server` dies with its terminal. `things daemon` installs the same server as a **launchd
+user agent**: it starts at login, restarts itself after a crash, and writes both streams to log
+files you can tail at any time.
+
+```bash
+things daemon install              # write the agent, start it, print URL + token
+things daemon install --port 8080 --tunnel frp --domain things.example.com
+things daemon install --no-start   # only write the plist
+things daemon status               # running? healthy? which pid, which token
+things daemon restart              # pick up a new build
+things daemon stop                 # stop without uninstalling
+things daemon uninstall            # stop and remove the agent (--purge also drops the logs)
+```
+
+**Watching it work** — the daemon has no terminal, so the logs are the way in:
+
+```bash
+things daemon logs                 # last 50 lines of both streams
+things daemon logs -f              # follow live (Ctrl+C to stop)
+things daemon logs -f --err        # only errors
+things daemon logs -n 200 --out    # last 200 request lines
+things daemon logs --clear         # truncate both files
+```
+
+| What | Where |
+|---|---|
+| Agent | `~/Library/LaunchAgents/com.isuvorov.awesome-things.plist` (mode `600`) |
+| Requests | `~/Library/Logs/awesome-things/server.log` |
+| Errors | `~/Library/Logs/awesome-things/server.error.log` |
+| Health | `curl http://localhost:32123/health` |
+
+Notes:
+
+- The bearer token is **pinned into the agent** at install time (taken from `--token`,
+  `AWESOME_THINGS_TOKEN`, the previously installed agent, or generated). A daemonized server
+  cannot print a fresh random token anywhere you would see it.
+- launchd starts a job with an almost empty environment. `install` bakes in `PATH`, `HOME` and
+  every `AWESOME_THINGS_*` / `FRP_*` / `NGROK_AUTHTOKEN` variable from the shell you ran it in —
+  change one of them and run `things daemon install` again.
+- The first background run may need **Automation** access to Things3. macOS asks in a GUI dialog;
+  if it never appears, run any `things list` in Terminal once to grant it, then
+  `things daemon restart`.
+- Logs are rotated to `.1` on install/restart once they pass 10 MB — launchd rotates nothing itself.
+- macOS only; on other platforms the command refuses instead of pretending.
+
 ### As a JS/TS library
 
 ```ts

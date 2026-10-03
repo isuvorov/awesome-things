@@ -70,20 +70,30 @@ yargs(hideBin(process.argv))
     default: 'pretty' as const,
     describe: 'Output format',
   })
+  // `-f` means --follow in `daemon logs`, and yargs then hands --format a boolean.
+  // Normalise before validation, otherwise `daemon logs -f` dies on the choices check.
+  .middleware((argv) => {
+    if (typeof argv.format !== 'string') argv.format = 'pretty';
+  }, true)
   .middleware((argv) => {
     useJson = !!argv.json;
     fmt = getFormatters(argv.format as FormatStyle);
   })
   .demandCommand(1, 'Please specify a command')
   .showHelpOnFail(false)
-  .fail((msg, _err, yargsInstance) => {
+  .fail((msg, err, yargsInstance) => {
+    // A handler that threw arrives with msg === null — printing the help text then
+    // buries the only useful line. Report the error and stop.
+    if (!msg && err) {
+      console.error(`\x1b[31mError: ${errorMessage(err)}\x1b[0m`);
+      process.exit(1);
+    }
+
     yargsInstance.showHelp((help) => {
       const colored = help
-        // Insert "Other commands:" after server (before colorization)
-        .replace(
-          new RegExp(`(\\s+support\\n)(  ${appName} add)`, 'm'),
-          `$1\n${yellow('Other commands:')}\n$2`,
-        )
+        // Insert "Other commands:" before the first Things3 command (before colorization).
+        // Anchored on `add` itself: the server/daemon block above it keeps growing.
+        .replace(new RegExp(`^(  ${appName} add\\b)`, 'm'), `\n${yellow('Other commands:')}\n$1`)
         .replace(/^(.*<command> \[options\])$/m, bold('$1'))
         .replace(/^(Commands:)$/m, yellow('$1'))
         .replace(/^(Options:)$/m, yellow('$1'))
@@ -196,6 +206,144 @@ yargs(hideBin(process.argv))
         domain: argv.domain as string | undefined,
       });
     },
+  )
+
+  // ── Daemon ──────────────────────────────────────────────────────
+
+  .command(
+    'daemon',
+    'Run the HTTP server in the background (launchd, macOS)',
+    (y) =>
+      y
+        .command(
+          'install',
+          'Install the launchd agent and start it',
+          (y) =>
+            y
+              .option('port', { type: 'number', alias: 'p', describe: 'Port to listen on' })
+              .option('token', {
+                type: 'string',
+                describe:
+                  'Bearer token to pin into the agent (default: AWESOME_THINGS_TOKEN env or generated). Use --no-token to disable auth.',
+              })
+              .option('tunnel', {
+                choices: ['localtunnel', 'ngrok', 'frp', 'none'] as const,
+                describe: 'Tunnel provider (default: AWESOME_THINGS_TUNNEL env)',
+              })
+              .option('domain', { type: 'string', describe: 'Tunnel domain' })
+              .option('start', {
+                type: 'boolean',
+                default: true,
+                describe: 'Start right after installing (--no-start to only write the plist)',
+              }),
+          async (argv) => {
+            const noToken = (argv.token as unknown) === false || (argv as any).noToken === true;
+            const { installDaemon } = await import('./daemon/ops.js');
+            const { formatDaemonResult } = await import('./daemon/format.js');
+            await run(
+              () =>
+                installDaemon({
+                  port: argv.port,
+                  token: typeof argv.token === 'string' ? argv.token : undefined,
+                  noToken: noToken || undefined,
+                  tunnel: argv.tunnel as string | undefined,
+                  domain: argv.domain as string | undefined,
+                  start: argv.start as boolean,
+                }),
+              formatDaemonResult,
+            );
+          },
+        )
+        .command(
+          'uninstall',
+          'Stop the daemon and remove the launchd agent',
+          (y) =>
+            y.option('purge', {
+              type: 'boolean',
+              default: false,
+              describe: 'Also delete the log files',
+            }),
+          async (argv) => {
+            const { uninstallDaemon } = await import('./daemon/ops.js');
+            const { formatDaemonResult } = await import('./daemon/format.js');
+            await run(() => uninstallDaemon({ purge: argv.purge }), formatDaemonResult);
+          },
+        )
+        .command(
+          'start',
+          'Start the installed daemon',
+          () => {},
+          async () => {
+            const { startDaemon } = await import('./daemon/ops.js');
+            const { formatDaemonResult } = await import('./daemon/format.js');
+            await run(() => startDaemon(), formatDaemonResult);
+          },
+        )
+        .command(
+          'stop',
+          'Stop the daemon',
+          () => {},
+          async () => {
+            const { stopDaemon } = await import('./daemon/ops.js');
+            const { formatDaemonResult } = await import('./daemon/format.js');
+            await run(() => stopDaemon(), formatDaemonResult);
+          },
+        )
+        .command(
+          'restart',
+          'Restart the daemon (picks up a new build)',
+          () => {},
+          async () => {
+            const { restartDaemon } = await import('./daemon/ops.js');
+            const { formatDaemonResult } = await import('./daemon/format.js');
+            await run(() => restartDaemon(), formatDaemonResult);
+          },
+        )
+        .command(
+          'status',
+          'Show whether the daemon runs and answers',
+          () => {},
+          async () => {
+            const { daemonStatus } = await import('./daemon/ops.js');
+            const { formatDaemonResult } = await import('./daemon/format.js');
+            await run(() => daemonStatus(), formatDaemonResult);
+          },
+        )
+        .command(
+          'logs',
+          'Show the daemon logs',
+          (y) =>
+            y
+              .option('follow', {
+                type: 'boolean',
+                alias: 'f',
+                default: false,
+                describe: 'Keep streaming new lines (Ctrl+C to stop)',
+              })
+              .option('lines', {
+                type: 'number',
+                alias: 'n',
+                default: 50,
+                describe: 'How many lines to show first',
+              })
+              .option('err', { type: 'boolean', default: false, describe: 'Only the error log' })
+              .option('out', { type: 'boolean', default: false, describe: 'Only the stdout log' })
+              .option('clear', { type: 'boolean', default: false, describe: 'Truncate the logs' }),
+          async (argv) => {
+            const { runLogs } = await import('./daemon/logs.js');
+            const stream = argv.err && !argv.out ? 'err' : argv.out && !argv.err ? 'out' : 'all';
+            process.exit(
+              await runLogs({
+                follow: argv.follow,
+                lines: argv.lines,
+                stream,
+                clear: argv.clear,
+              }),
+            );
+          },
+        )
+        .demandCommand(1),
+    () => {},
   )
 
   // ── Todo commands ─────────────────────────────────────────────

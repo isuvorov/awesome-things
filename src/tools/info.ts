@@ -1,6 +1,6 @@
 import { existsSync, realpathSync } from 'node:fs';
 import { appDescription, appName, appVersion, defaultPort } from '../config.js';
-import { bold, cyan, dim, isInteractive, stripAnsi } from '../server/logger.js';
+import { bold, cyan, dim, stripAnsi, useColor } from '../server/logger.js';
 
 export interface AppInfo {
   name: string;
@@ -105,5 +105,5 @@ export function formatInfo(info: AppInfo): string {
   });
 
   const text = lines.join('\n');
-  return isInteractive ? text : stripAnsi(text);
+  return useColor ? text : stripAnsi(text);
 }

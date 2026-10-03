@@ -4,10 +4,10 @@ import {
   cyan,
   dim,
   green,
-  isInteractive,
   magenta,
   red,
   stripAnsi,
+  useColor,
   yellow,
 } from '../server/logger.js';
 import { APP_ID } from '../server/port.js';
@@ -116,5 +116,5 @@ export function formatDaemonResult(result: DaemonResult): string {
   lines.push('');
 
   const text = lines.join('\n');
-  return isInteractive ? text : stripAnsi(text);
+  return useColor ? text : stripAnsi(text);
 }

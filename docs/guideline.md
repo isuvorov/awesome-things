@@ -272,8 +272,17 @@ things daemon logs -n 200 --out    # more request history
 things daemon logs --clear         # truncate
 ```
 
-> `-f` is also the global alias for `--format`. A middleware with `applyBeforeValidation` resets a
-> non-string `--format` to `pretty`, otherwise yargs rejects `daemon logs -f` on its choices check.
+> `-f` is also the global alias for `--format`, and that collision cuts both ways. A middleware
+> with `applyBeforeValidation` resets a non-string `--format` to `pretty`, otherwise yargs rejects
+> `daemon logs -f` on its choices check. In the other direction yargs hands the `--format` default
+> `'pretty'` to `follow` through the same alias — a truthy string that made a plain `daemon logs`
+> tail forever. `wantsFollow()` accepts only `true`, so following stays opt-in.
+
+**Colour in the log files.** `isInteractive` (a real TTY, so cursor tricks are safe) and `useColor`
+are deliberately separate: launchd gives the daemon no TTY, but its log file is read back through
+`tail` in a terminal, where ANSI is what you want. `daemon install` therefore writes `FORCE_COLOR=1`
+into the plist by default; `--no-color` leaves it out for greppable plain text, and an inherited
+`NO_COLOR` always wins inside the logger.
 
 Everything except the actual `launchctl`/`tail` calls is a pure function and covered by
 `tests/daemon.test.ts`. The agent sandbox cannot write to `~/Library`, so `install` can only be

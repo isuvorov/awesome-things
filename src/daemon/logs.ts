@@ -12,6 +12,15 @@ export interface LogsOptions {
   clear?: boolean;
 }
 
+/**
+ * `-f` is the global alias for `--format`, so yargs hands its default `'pretty'` to
+ * `follow` as well. Anything but an explicit boolean must mean "do not follow", or a
+ * plain `daemon logs` never returns.
+ */
+export function wantsFollow(value: unknown): boolean {
+  return value === true;
+}
+
 export function logFiles(stream: LogStream = 'all'): string[] {
   const paths = daemonPaths();
   if (stream === 'out') return [paths.outLog];
@@ -26,12 +35,22 @@ export function buildTailArgs(options: LogsOptions, files: string[]): string[] {
   return [...args, ...files];
 }
 
-/** tail dies on a missing file, and the daemon may simply not have logged yet. */
+/**
+ * tail dies on a missing file, and the daemon may simply not have logged yet. Creating
+ * them is best-effort on purpose: reading existing logs must not fail because the
+ * directory could not be (re)created — `mkdir` reports EEXIST under a sandbox that
+ * denies the call, and that is no reason to refuse to show the logs.
+ */
 function ensureFiles(files: string[]) {
   const paths = daemonPaths();
-  mkdirSync(paths.logDir, { recursive: true });
+  try {
+    mkdirSync(paths.logDir, { recursive: true });
+  } catch {}
   for (const file of files) {
-    if (!existsSync(file)) writeFileSync(file, '', 'utf-8');
+    if (existsSync(file)) continue;
+    try {
+      writeFileSync(file, '', 'utf-8');
+    } catch {}
   }
 }
 

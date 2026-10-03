@@ -8,3 +8,6 @@ lib-*/
 # Local scratch files — personal notes and real tokens, never commit
 /TODO*.md
 /test.sh
+
+# Scratch builds (TCC probe bundles, compiled binaries)
+.tmp*

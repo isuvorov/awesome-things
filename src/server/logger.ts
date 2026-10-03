@@ -7,6 +7,17 @@ const isTty = Boolean(process.stdout.isTTY);
 /** True when stdout is a terminal: spinners and cursor tricks are safe. */
 export const isInteractive = isTty;
 
+/**
+ * Colour is a separate question from "is this a TTY". The daemon writes to a log file —
+ * no TTY, so no cursor tricks — but that file is read back through `tail` in a terminal,
+ * where ANSI is exactly what you want. `FORCE_COLOR` turns it on, `NO_COLOR` always wins.
+ */
+export const useColor = process.env.NO_COLOR
+  ? false
+  : process.env.FORCE_COLOR !== undefined && process.env.FORCE_COLOR !== '0'
+    ? true
+    : isTty;
+
 // ── ANSI helpers ──────────────────────────────────────────────────
 export const bold = (s: string) => `\x1b[1m${s}\x1b[22m`;
 export const dim = (s: string) => `\x1b[2m${s}\x1b[22m`;
@@ -208,8 +219,9 @@ export function logRequest(
     return;
   }
   if (!isTty) {
-    // Piped to a file / systemd / pm2: plain lines, no ANSI, no cursor tricks.
-    console.log(stripAnsi(formatRequestLine(method, pathname, status, durationMs, 80, extra)));
+    // Piped to a file / launchd / pm2: no cursor tricks, but keep ANSI when asked for.
+    const line = formatRequestLine(method, pathname, status, durationMs, 80, extra);
+    console.log(useColor ? line : stripAnsi(line));
   }
 }
 
@@ -229,7 +241,7 @@ export function logError(label: string, err: unknown) {
       requestBox.printAbove(lines);
       return;
     }
-    for (const line of lines) console.error(isTty ? line : stripAnsi(line));
+    for (const line of lines) console.error(useColor ? line : stripAnsi(line));
   } catch {
     console.error(`${label}:`, err);
   }

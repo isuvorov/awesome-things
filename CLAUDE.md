@@ -147,8 +147,14 @@ src/
 - `ProgramArguments` is always `[process.execPath, realpath(argv[1]), 'server']` — never the bare
   bin, whose shebang and exec bit cannot be relied on after `npm link`
 - **Logs are the only UI**: launchd redirects stdout/stderr to `~/Library/Logs/awesome-things/`,
-  `logger.ts` already prints plain unboxed lines when stdout is not a TTY, and `daemon logs -f`
-  tails with `-F` so following survives the 10 MB rotation
+  `logger.ts` prints unboxed lines when stdout is not a TTY, and `daemon logs -f` tails with `-F`
+  so following survives the 10 MB rotation
+- **`useColor` is not `isInteractive`** — no TTY means no cursor tricks, but the log file is read
+  back through `tail`, so colour stays. `install` bakes `FORCE_COLOR=1` into the plist (`--no-color`
+  opts out), and `NO_COLOR` always wins
+- **`-f` is the global alias for `--format`.** yargs feeds its default `'pretty'` into any `follow`
+  option sharing that alias, so `daemon logs` would tail forever — `wantsFollow()` accepts only
+  literal `true`
 - `daemon status` distinguishes *launchd runs it* (`launchctl print`) from *it answers*
   (`probePort` → `/health`); both are needed, either one alone lies
 

@@ -73,6 +73,8 @@ export interface InstallOptions {
   noToken?: boolean;
   tunnel?: string;
   domain?: string;
+  /** Keep ANSI colour in the log files. On by default — `daemon logs` is how they are read. */
+  color?: boolean;
   /** Install the plist but leave the job stopped. */
   start?: boolean;
 }
@@ -84,7 +86,8 @@ export function hasConfigOverrides(options: InstallOptions): boolean {
     options.token !== undefined ||
     options.noToken === true ||
     options.tunnel !== undefined ||
-    options.domain !== undefined
+    options.domain !== undefined ||
+    options.color === false
   );
 }
 
@@ -246,6 +249,7 @@ export async function installDaemon(options: InstallOptions = {}): Promise<Daemo
       noToken: options.noToken,
       tunnel: options.tunnel,
       domain: options.domain,
+      color: options.color ?? true,
     }),
     workingDirectory: homedir(),
     outLog: paths.outLog,

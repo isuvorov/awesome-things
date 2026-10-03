@@ -6,7 +6,7 @@ import {
   parseLaunchctlPrint,
   type RunResult,
 } from '../src/daemon/launchctl.js';
-import { buildTailArgs, logFiles } from '../src/daemon/logs.js';
+import { buildTailArgs, logFiles, wantsFollow } from '../src/daemon/logs.js';
 import { type DaemonResult, hasConfigOverrides, planUp } from '../src/daemon/ops.js';
 import { daemonLabel, daemonPaths, serviceId, serviceTarget } from '../src/daemon/paths.js';
 import {
@@ -107,6 +107,26 @@ describe('collectEnvironment', () => {
   test('noToken drops an inherited token instead of silently keeping auth on', () => {
     const result = collectEnvironment({ execPath: BUN, home: HOME, env, noToken: true });
     expect(result.AWESOME_THINGS_TOKEN).toBeUndefined();
+  });
+
+  test('forces colour, since launchd gives the job no TTY to detect', () => {
+    expect(collectEnvironment({ execPath: BUN, home: HOME, env, color: true }).FORCE_COLOR).toBe(
+      '1',
+    );
+    expect(
+      collectEnvironment({ execPath: BUN, home: HOME, env, color: false }).FORCE_COLOR,
+    ).toBeUndefined();
+  });
+
+  test('colour beats an inherited NO_COLOR instead of silently losing to it', () => {
+    const result = collectEnvironment({
+      execPath: BUN,
+      home: HOME,
+      env: { ...env, NO_COLOR: '1' },
+      color: true,
+    });
+    expect(result.NO_COLOR).toBeUndefined();
+    expect(result.FORCE_COLOR).toBe('1');
   });
 
   test('overrides port, tunnel and domain', () => {
@@ -245,6 +265,15 @@ describe('logs', () => {
 
   test('tails the requested number of lines', () => {
     expect(buildTailArgs({ lines: 120 }, ['/tmp/a.log'])).toEqual(['-n', '120', '/tmp/a.log']);
+  });
+
+  test('only an explicit boolean follows — -f is the global alias for --format', () => {
+    expect(wantsFollow(true)).toBe(true);
+    // yargs hands `follow` the --format default through the shared `-f` alias; a truthy
+    // string there used to make a plain `daemon logs` tail forever.
+    expect(wantsFollow('pretty')).toBe(false);
+    expect(wantsFollow(undefined)).toBe(false);
+    expect(wantsFollow(false)).toBe(false);
   });
 
   test('uses -F so following survives a log rotation', () => {

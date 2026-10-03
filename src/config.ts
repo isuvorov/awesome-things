@@ -1,10 +1,22 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const packageJsonPath = resolve(import.meta.dirname, '../package.json');
-const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+/**
+ * A `bun build --compile` binary has no package.json next to it — the file lives at a
+ * virtual `/$bunfs/` path that does not exist. Failing to read it must never be fatal,
+ * or the whole CLI dies at import time.
+ */
+function readPackageJson(): { version?: string; description?: string } {
+  try {
+    return JSON.parse(readFileSync(resolve(import.meta.dirname, '../package.json'), 'utf-8'));
+  } catch {
+    return {};
+  }
+}
 
-export const appVersion: string = packageJson.version;
+const packageJson = readPackageJson();
+
+export const appVersion: string = packageJson.version ?? '0.0.0';
 export const appDescription: string = packageJson.description ?? '';
 export const appName = 'awesome-things';
 export const mcpName = 'things3';

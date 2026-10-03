@@ -81,7 +81,12 @@ const daemonConfigOptions = <T>(y: Argv<T>) =>
       choices: ['localtunnel', 'ngrok', 'frp', 'none'] as const,
       describe: 'Tunnel provider (default: AWESOME_THINGS_TUNNEL env)',
     })
-    .option('domain', { type: 'string', describe: 'Tunnel domain' });
+    .option('domain', { type: 'string', describe: 'Tunnel domain' })
+    .option('color', {
+      type: 'boolean',
+      default: true,
+      describe: 'Keep ANSI colour in the log files (--no-color for greppable plain text)',
+    });
 
 function daemonConfig(argv: Record<string, unknown>): InstallOptions {
   // `--no-token` arrives as `token: false`, which no string cast would survive.
@@ -92,6 +97,7 @@ function daemonConfig(argv: Record<string, unknown>): InstallOptions {
     noToken: noToken || undefined,
     tunnel: argv.tunnel as string | undefined,
     domain: argv.domain as string | undefined,
+    color: argv.color as boolean | undefined,
   };
 }
 
@@ -374,11 +380,11 @@ yargs(hideBin(process.argv))
               .option('out', { type: 'boolean', default: false, describe: 'Only the stdout log' })
               .option('clear', { type: 'boolean', default: false, describe: 'Truncate the logs' }),
           async (argv) => {
-            const { runLogs } = await import('./daemon/logs.js');
+            const { runLogs, wantsFollow } = await import('./daemon/logs.js');
             const stream = argv.err && !argv.out ? 'err' : argv.out && !argv.err ? 'out' : 'all';
             process.exit(
               await runLogs({
-                follow: argv.follow,
+                follow: wantsFollow(argv.follow),
                 lines: argv.lines,
                 stream,
                 clear: argv.clear,

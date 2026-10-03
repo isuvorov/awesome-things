@@ -11,6 +11,7 @@ export const FORWARDED_ENV_KEYS = [
   'AWESOME_THINGS_TUNNEL',
   'AWESOME_THINGS_DOMAIN',
   'NGROK_AUTHTOKEN',
+  'NO_COLOR',
 ] as const;
 
 /** frp is configured through a whole family of vars — forward them wholesale. */
@@ -49,10 +50,12 @@ export interface EnvironmentInput {
   noToken?: boolean;
   tunnel?: string;
   domain?: string;
+  /** Keep ANSI in the log files — they are read back through `tail` in a terminal. */
+  color?: boolean;
 }
 
 export function collectEnvironment(input: EnvironmentInput): Record<string, string> {
-  const { execPath, home, env = process.env, port, token, noToken, tunnel, domain } = input;
+  const { execPath, home, env = process.env, port, token, noToken, tunnel, domain, color } = input;
   const result: Record<string, string> = {};
 
   for (const key of FORWARDED_ENV_KEYS) {
@@ -69,6 +72,14 @@ export function collectEnvironment(input: EnvironmentInput): Record<string, stri
   if (noToken) delete result.AWESOME_THINGS_TOKEN;
   if (tunnel) result.AWESOME_THINGS_TUNNEL = tunnel;
   if (domain) result.AWESOME_THINGS_DOMAIN = domain;
+
+  // launchd gives the job no TTY, so the logger would strip every colour without this.
+  if (color) {
+    result.FORCE_COLOR = '1';
+    delete result.NO_COLOR;
+  } else if (color === false) {
+    delete result.FORCE_COLOR;
+  }
 
   result.HOME = home;
   result.PATH = buildPath(execPath, env.PATH ?? '');

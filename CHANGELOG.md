@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/isuvorov/awesome-things/compare/v1.3.0...v1.4.0) (2026-10-03)
+
+
+### Features
+
+* add deamon ([367d0a3](https://github.com/isuvorov/awesome-things/commit/367d0a33077f9337572f34f5d6ff22c0129ef1bf))
+
 # [1.3.0](https://github.com/isuvorov/awesome-things/compare/v1.2.1...v1.3.0) (2026-09-14)
 
 

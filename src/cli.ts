@@ -88,6 +88,40 @@ const daemonConfigOptions = <T>(y: Argv<T>) =>
       describe: 'Keep ANSI colour in the log files (--no-color for greppable plain text)',
     });
 
+/** Registered twice: as `logs` and as `daemon logs` — the short one is what gets typed. */
+const LOGS_DESCRIPTION = 'Show the server logs (tail of the daemon log files)';
+
+const logsOptions = <T>(y: Argv<T>) =>
+  y
+    .option('follow', {
+      type: 'boolean',
+      alias: 'f',
+      default: false,
+      describe: 'Keep streaming new lines (Ctrl+C to detach)',
+    })
+    .option('lines', {
+      type: 'number',
+      alias: 'n',
+      default: 50,
+      describe: 'How many lines to show first',
+    })
+    .option('err', { type: 'boolean', default: false, describe: 'Only the error log' })
+    .option('out', { type: 'boolean', default: false, describe: 'Only the stdout log' })
+    .option('clear', { type: 'boolean', default: false, describe: 'Truncate the logs' });
+
+const logsHandler = async (argv: Record<string, unknown>) => {
+  const { runLogs, wantsFollow } = await import('./daemon/logs.js');
+  const stream = argv.err && !argv.out ? 'err' : argv.out && !argv.err ? 'out' : 'all';
+  process.exit(
+    await runLogs({
+      follow: wantsFollow(argv.follow),
+      lines: argv.lines as number,
+      stream,
+      clear: argv.clear as boolean,
+    }),
+  );
+};
+
 function daemonConfig(argv: Record<string, unknown>): InstallOptions {
   // `--no-token` arrives as `token: false`, which no string cast would survive.
   const noToken = argv.token === false || argv.noToken === true;
@@ -255,6 +289,8 @@ yargs(hideBin(process.argv))
     },
   )
 
+  .command('logs', LOGS_DESCRIPTION, logsOptions, logsHandler)
+
   // ── Daemon ──────────────────────────────────────────────────────
 
   .command(
@@ -359,39 +395,7 @@ yargs(hideBin(process.argv))
             await run(() => daemonStatus(), formatDaemonResult);
           },
         )
-        .command(
-          'logs',
-          'Show the daemon logs',
-          (y) =>
-            y
-              .option('follow', {
-                type: 'boolean',
-                alias: 'f',
-                default: false,
-                describe: 'Keep streaming new lines (Ctrl+C to stop)',
-              })
-              .option('lines', {
-                type: 'number',
-                alias: 'n',
-                default: 50,
-                describe: 'How many lines to show first',
-              })
-              .option('err', { type: 'boolean', default: false, describe: 'Only the error log' })
-              .option('out', { type: 'boolean', default: false, describe: 'Only the stdout log' })
-              .option('clear', { type: 'boolean', default: false, describe: 'Truncate the logs' }),
-          async (argv) => {
-            const { runLogs, wantsFollow } = await import('./daemon/logs.js');
-            const stream = argv.err && !argv.out ? 'err' : argv.out && !argv.err ? 'out' : 'all';
-            process.exit(
-              await runLogs({
-                follow: wantsFollow(argv.follow),
-                lines: argv.lines,
-                stream,
-                clear: argv.clear,
-              }),
-            );
-          },
-        ),
+        .command('logs', LOGS_DESCRIPTION, logsOptions, logsHandler),
     () => {},
   )
 

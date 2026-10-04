@@ -22,7 +22,7 @@ import {
   readPlistJson,
   type ServiceState,
 } from './launchctl.js';
-import { daemonPaths } from './paths.js';
+import { daemonPaths, legacyLogDir } from './paths.js';
 import { buildPlist, collectEnvironment, resolveProgramArguments } from './plist.js';
 
 /** launchd never rotates anything; a chatty server would otherwise fill the disk. */
@@ -226,6 +226,12 @@ export async function installDaemon(options: InstallOptions = {}): Promise<Daemo
   const token = options.noToken
     ? undefined
     : options.token || process.env.AWESOME_THINGS_TOKEN || stored.token || generateToken();
+
+  // Logs moved to ~/.local/share; say where the old ones went rather than orphaning them.
+  const legacy = legacyLogDir();
+  if (legacy !== paths.logDir && existsSync(legacy)) {
+    warnings.push(`Older logs are still in ${legacy} — this install writes to ${paths.logDir}.`);
+  }
 
   mkdirSync(paths.logDir, { recursive: true });
   mkdirSync(dirname(paths.plist), { recursive: true });

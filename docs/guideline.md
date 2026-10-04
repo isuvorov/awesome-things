@@ -48,7 +48,7 @@ src/
 │   ├── list-ops.ts       # listTags, listAreas
 │   └── move-ops.ts       # moveTodo, moveTodoToProject, moveTodoToArea, moveProjectToArea, removeTodoFromProject, removeProjectFromArea
 ├── daemon/               # Background launchd agent (macOS)
-│   ├── paths.ts          # daemonLabel, daemonPaths, serviceTarget, serviceId
+│   ├── paths.ts          # daemonLabel, daemonPaths, logDir, legacyLogDir, serviceTarget, serviceId
 │   ├── plist.ts          # buildPlist, collectEnvironment, buildPath, resolveProgramArguments
 │   ├── launchctl.ts      # run, bootstrapService, bootoutService, kickstartService, parseLaunchctlPrint
 │   ├── ops.ts            # upDaemon/planUp, installDaemon, uninstallDaemon, start/stop/restartDaemon, daemonStatus
@@ -204,8 +204,8 @@ that starts a job at login, keeps it alive and can reach the Aqua session AppleS
 | Piece | Path |
 |---|---|
 | Agent | `~/Library/LaunchAgents/com.isuvorov.awesome-things.plist`, mode `600` |
-| Stdout | `~/Library/Logs/awesome-things/server.log` |
-| Stderr | `~/Library/Logs/awesome-things/server.error.log` |
+| Stdout | `~/.local/share/awesome-things/logs/server.log` |
+| Stderr | `~/.local/share/awesome-things/logs/server.error.log` |
 | Service id | `gui/<uid>/com.isuvorov.awesome-things` |
 
 Subcommands: `up` (the default), `install`, `uninstall`, `start`, `stop`, `restart`, `status`,
@@ -259,6 +259,13 @@ The design decisions worth knowing:
 - **Two independent truths in `status`.** `launchctl print` says whether launchd runs the job;
   `probePort()` says whether it answers `/health`. A job can be `running` and dead to HTTP (for
   example while macOS waits for Automation approval), so both are reported.
+
+**Where the logs live.** `~/.local/share/awesome-things/logs/`, matching every other tool on this
+machine (`~/.local/share/openhealth/logs/`, `~/.local/share/vibe-manager/logs/`) rather than the
+macOS `~/Library/Logs`. `AWESOME_THINGS_LOG_DIR` overrides the directory outright, `XDG_DATA_HOME`
+moves the base. The paths are frozen into `StandardOutPath`/`StandardErrorPath`, so changing either
+variable needs a fresh `daemon install`; `install` warns when logs are still sitting in the old
+`~/Library/Logs` location.
 
 **Logs are the only UI a daemon has.** `logger.ts` already degrades to plain, ANSI-free lines when
 stdout is not a TTY, so the files stay readable. `daemon logs` shells out to `tail` with `-F`

@@ -8,7 +8,14 @@ import {
 } from '../src/daemon/launchctl.js';
 import { buildTailArgs, logFiles, wantsFollow } from '../src/daemon/logs.js';
 import { type DaemonResult, hasConfigOverrides, planUp } from '../src/daemon/ops.js';
-import { daemonLabel, daemonPaths, serviceId, serviceTarget } from '../src/daemon/paths.js';
+import {
+  daemonLabel,
+  daemonPaths,
+  legacyLogDir,
+  logDir,
+  serviceId,
+  serviceTarget,
+} from '../src/daemon/paths.js';
 import {
   buildPath,
   buildPlist,
@@ -28,10 +35,23 @@ describe('daemonPaths', () => {
     expect(paths.plist).toBe(`${HOME}/Library/LaunchAgents/${daemonLabel}.plist`);
   });
 
-  test('puts the logs where Console.app looks for them', () => {
-    expect(paths.logDir).toBe(`${HOME}/Library/Logs/awesome-things`);
-    expect(paths.outLog).toBe(`${HOME}/Library/Logs/awesome-things/server.log`);
-    expect(paths.errLog).toBe(`${HOME}/Library/Logs/awesome-things/server.error.log`);
+  test('puts the logs under XDG_DATA_HOME, like every other tool in this setup', () => {
+    expect(paths.logDir).toBe(`${HOME}/.local/share/awesome-things/logs`);
+    expect(paths.outLog).toBe(`${HOME}/.local/share/awesome-things/logs/server.log`);
+    expect(paths.errLog).toBe(`${HOME}/.local/share/awesome-things/logs/server.error.log`);
+  });
+
+  test('honours XDG_DATA_HOME and a direct override', () => {
+    expect(logDir(HOME, { XDG_DATA_HOME: '/data' })).toBe('/data/awesome-things/logs');
+    expect(logDir(HOME, { AWESOME_THINGS_LOG_DIR: '/tmp/at' })).toBe('/tmp/at');
+    // The direct override wins — it is the escape hatch, not a suggestion.
+    expect(logDir(HOME, { XDG_DATA_HOME: '/data', AWESOME_THINGS_LOG_DIR: '/tmp/at' })).toBe(
+      '/tmp/at',
+    );
+  });
+
+  test('still knows where the logs used to live', () => {
+    expect(legacyLogDir(HOME)).toBe(`${HOME}/Library/Logs/awesome-things`);
   });
 
   test('targets the GUI domain — AppleScript needs an Aqua session', () => {

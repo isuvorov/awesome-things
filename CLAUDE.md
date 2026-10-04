@@ -146,7 +146,10 @@ src/
   already held by its own twin, and a plain `KeepAlive` would turn that into a respawn loop
 - `ProgramArguments` is always `[process.execPath, realpath(argv[1]), 'server']` — never the bare
   bin, whose shebang and exec bit cannot be relied on after `npm link`
-- **Logs are the only UI**: launchd redirects stdout/stderr to `~/Library/Logs/awesome-things/`,
+- **Log paths follow the rest of the machine**, not macOS: `~/.local/share/<app>/logs/` like
+  `openhealth` and `vibe-manager`, overridable with `AWESOME_THINGS_LOG_DIR` or `XDG_DATA_HOME`.
+  Never move them back to `~/Library/Logs` — one place everywhere beats a per-OS convention
+- **Logs are the only UI**: launchd redirects stdout/stderr to `~/.local/share/awesome-things/logs/`,
   `logger.ts` prints unboxed lines when stdout is not a TTY, and `daemon logs -f` tails with `-F`
   so following survives the 10 MB rotation
 - **`useColor` is not `isInteractive`** — no TTY means no cursor tricks, but the log file is read

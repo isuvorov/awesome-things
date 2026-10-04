@@ -66,9 +66,11 @@ export async function runLogs(options: LogsOptions = {}): Promise<number> {
 
   if (isInteractive) {
     for (const file of files) console.log(`  ${dim(`── ${file}`)}`);
-    // "stop" would read as "stop the daemon" — Ctrl+C only ends the tail.
+    // Say plainly that this terminal is a reader, not the server: "stop" would read as
+    // "stop the daemon", and a second window showing live logs looks like a second server.
     if (options.follow) {
-      console.log(`  ${dim('── following (Ctrl+C to detach, the daemon keeps running)')}`);
+      console.log(`  ${dim('── reader only: this window tails the log files, it is not the')}`);
+      console.log(`  ${dim('   server process. Ctrl+C detaches, the daemon keeps running.')}`);
     }
     console.log();
   }

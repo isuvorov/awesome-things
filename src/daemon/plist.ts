@@ -12,6 +12,9 @@ export const FORWARDED_ENV_KEYS = [
   'AWESOME_THINGS_DOMAIN',
   'NGROK_AUTHTOKEN',
   'NO_COLOR',
+  // The log paths are frozen into StandardOutPath, but the job itself may want them too.
+  'AWESOME_THINGS_LOG_DIR',
+  'XDG_DATA_HOME',
 ] as const;
 
 /** frp is configured through a whole family of vars — forward them wholesale. */

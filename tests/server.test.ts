@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test';
+import { isProbePath } from '../src/server/http.js';
 import { resolveTunnelProvider } from '../src/utils/tunnel.js';
 
 // Simple flag to control mock data responses
@@ -187,6 +188,14 @@ describe('/__up uptime probe', () => {
   test('does not become a hole for other methods', async () => {
     const res = await fetch(`${baseUrl}/__up`, { method: 'POST' });
     expect(res.status).toBe(401);
+  });
+
+  test('the same predicate gates the answer and the silence', () => {
+    expect(isProbePath('/__up')).toBe(true);
+    expect(isProbePath('/__up/things-lan-axxx-dev')).toBe(true);
+    // Not a probe: the prefix has to be a path segment, not just a string prefix.
+    expect(isProbePath('/__uptime')).toBe(false);
+    expect(isProbePath('/api/__up')).toBe(false);
   });
 });
 

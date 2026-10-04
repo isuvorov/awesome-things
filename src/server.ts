@@ -25,7 +25,7 @@ import {
 import { defaultPort } from './config.js';
 import { errorMessage } from './server/errors.js';
 import { installProcessGuards } from './server/guards.js';
-import { body, handle, json, MCP_CORS_HEADERS } from './server/http.js';
+import { body, handle, isProbePath, json, MCP_CORS_HEADERS } from './server/http.js';
 import {
   isInteractive,
   type LogExtra,
@@ -80,10 +80,10 @@ async function handleRoute(
       : json({ ok: true, app: APP_ID, port: url.port });
   }
 
-  // ── Uptime probes (no auth) ──────────────────────────────
+  // ── Uptime probes (no auth, not logged) ──────────────────
   // `/__up/<whatever>`: the suffix is the monitor's own service name, never ours, so
   // anything under the prefix answers. Nothing here reveals state beyond "it is alive".
-  if (pathname === '/__up' || pathname.startsWith('/__up/')) {
+  if (isProbePath(pathname)) {
     if (method === 'GET' || method === 'HEAD') {
       return method === 'HEAD'
         ? new Response(null, { status: 200 })
@@ -325,6 +325,9 @@ export async function startServer(options: ServerOptions = {}) {
       const finishLog = (info: { toolError?: string } = {}) => {
         if (logged) return;
         logged = true;
+        // An uptime monitor polls every few seconds forever — logging that would bury
+        // every real request and rotate the log file for nothing.
+        if (isProbePath(pathname)) return;
         logRequest(method, pathname, status, Math.round(performance.now() - start), {
           ...extra,
           ...(info.toolError ? { toolError: info.toolError } : {}),

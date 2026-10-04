@@ -366,15 +366,12 @@ export function printStartupBanner(opts: {
     }
     console.log(`  ${arrow}  ${pad('MCP:')}  ${cyan(`${base}${mcpPath}`)}`);
     console.log();
-    configLines += printConfig('MCP config (Localhost MCP)', {
-      mcpServers: { things3: { url: `${base}${mcpPath}` } },
-    });
-    if (token) {
-      configLines += printConfig(
-        'MCP config (Localhost, header auth)',
-        headerAuthConfig(base, token),
-      );
-    }
+    // Locally every client can send headers, so the token never goes in the URL here.
+    // The token-in-path form stays for the tunnel, where ChatGPT connectors need it.
+    configLines += printConfig(
+      'MCP config (Localhost MCP)',
+      token ? headerAuthConfig(base, token) : { mcpServers: { things3: { url: `${base}/mcp` } } },
+    );
   }
 
   configLines += printConfig('MCP config (CLI)', {

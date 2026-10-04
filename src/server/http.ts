@@ -9,6 +9,18 @@ export const MCP_CORS_HEADERS = {
   'Access-Control-Expose-Headers': 'mcp-session-id, mcp-protocol-version',
 };
 
+/** The prefix an uptime monitor pings; the suffix after it is the monitor's own name. */
+export const PROBE_PREFIX = '/__up';
+
+/**
+ * Probe traffic is answered without auth and kept out of the request log: a monitor
+ * polls forever, and those lines would bury every real request and spin the rotation.
+ * One predicate for both decisions, so they can never drift apart.
+ */
+export function isProbePath(pathname: string): boolean {
+  return pathname === PROBE_PREFIX || pathname.startsWith(`${PROBE_PREFIX}/`);
+}
+
 export function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,

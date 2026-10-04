@@ -278,7 +278,11 @@ export async function startServer(options: ServerOptions = {}) {
     port = startPort + i;
     const status = await probePort(port);
     if (status === 'ours') {
-      console.log(`Port ${port} is already used by ${APP_ID}, reusing not possible`);
+      // Two servers cannot share a port, but the second run is still useful: report the
+      // instance that owns it and follow its logs when they exist. Exit 0 — this is the
+      // expected outcome, and KeepAlive.SuccessfulExit=false relies on it.
+      const { attachToRunning } = await import('./server/attach.js');
+      await attachToRunning(port, token);
       process.exit(0);
     }
     if (status === 'free') break;

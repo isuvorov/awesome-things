@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test';
+import { formatAlreadyRunning } from '../src/server/attach.js';
 import { isProbePath } from '../src/server/http.js';
+import { stripAnsi } from '../src/server/logger.js';
 import { resolveTunnelProvider } from '../src/utils/tunnel.js';
 
 // Simple flag to control mock data responses
@@ -196,6 +198,25 @@ describe('/__up uptime probe', () => {
     // Not a probe: the prefix has to be a path segment, not just a string prefix.
     expect(isProbePath('/__uptime')).toBe(false);
     expect(isProbePath('/api/__up')).toBe(false);
+  });
+});
+
+describe('formatAlreadyRunning', () => {
+  const text = stripAnsi(formatAlreadyRunning(32121, 'secret-token'));
+
+  test('names the port that is taken instead of just refusing', () => {
+    expect(text).toContain('is already running');
+    expect(text).toContain('on port 32121');
+  });
+
+  test('hands over everything needed to use that instance', () => {
+    expect(text).toContain('http://localhost:32121/api');
+    expect(text).toContain('secret-token');
+    expect(text).toContain('http://localhost:32121/mcp');
+  });
+
+  test('says nothing about a token when auth is off', () => {
+    expect(stripAnsi(formatAlreadyRunning(32121, undefined))).not.toContain('Token:');
   });
 });
 

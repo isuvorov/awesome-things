@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, test } from 'bun:test';
 import { errorMessage, formatError, isClientAbort } from '../src/server/errors.js';
 import { installProcessGuards, resetProcessGuardsForTests } from '../src/server/guards.js';
-import { logError, maskSecrets } from '../src/server/logger.js';
+import { headerAuthConfig, logError, maskSecrets } from '../src/server/logger.js';
 
 describe('errorMessage', () => {
   test('reads message from Error', () => {
@@ -162,5 +162,20 @@ describe('maskSecrets', () => {
 
   test('leaves ordinary paths alone', () => {
     expect(maskSecrets('/api/todos?list=today')).toBe('/api/todos?list=today');
+  });
+});
+
+describe('headerAuthConfig', () => {
+  const config = headerAuthConfig('http://localhost:32123', 's3cret') as {
+    mcpServers: { things3: { url: string; headers: Record<string, string> } };
+  };
+
+  test('keeps the token out of the URL — that is the whole point', () => {
+    expect(config.mcpServers.things3.url).toBe('http://localhost:32123/mcp');
+    expect(config.mcpServers.things3.url).not.toContain('s3cret');
+  });
+
+  test('sends it the way checkAuth expects', () => {
+    expect(config.mcpServers.things3.headers.Authorization).toBe('Bearer s3cret');
   });
 });

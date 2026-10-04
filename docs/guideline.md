@@ -295,6 +295,22 @@ verified by the user in a real terminal.
 - **HTTP server** (`server.ts`) — `curl http://localhost:32123/api/todos`
 - **Aggregator** (`index.ts`) — re-exports everything from `api.ts`
 
+### Authenticating an MCP client (`utils/auth.ts`)
+
+`checkAuth()` accepts the token three ways, and the startup banner prints a ready config for the
+first two:
+
+| Way | For whom |
+|---|---|
+| `Authorization: Bearer <token>` | Any client that can set headers — **prefer this** |
+| `/mcp/auth/<token>` in the URL | Clients that cannot: ChatGPT connectors, plain browsers |
+| `awesome_things_token` cookie | The web UI, set once by `POST /auth`, `HttpOnly` |
+
+The header form keeps the token out of the URL, out of shell history and out of any log that
+records paths — `maskSecrets()` has to redact `/mcp/auth/<token>` precisely because the path form
+leaks it otherwise. The banner prints both configs whenever a token exists, for localhost and for
+the tunnel URL alike.
+
 ## macOS permissions
 
 AppleScript is the only way to drive Things3, and macOS gates it twice:

@@ -257,6 +257,23 @@ function printConfig(label: string, config: object): number {
   return 1 + jsonLines.length + 1; // header + json + empty line
 }
 
+/**
+ * The config for clients that can send headers, which is the better of the two: the
+ * token stays out of the URL, out of shell history and out of every request log that
+ * records paths. `/mcp/auth/<token>` exists only for the clients that cannot — browsers
+ * and ChatGPT connectors among them.
+ */
+export function headerAuthConfig(url: string, token: string): object {
+  return {
+    mcpServers: {
+      things3: {
+        url: `${url}/mcp`,
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    },
+  };
+}
+
 function printInstructions(label: string, lines: string[]): number {
   console.log(dim(`  ── ${label} ──`));
   for (const line of lines) {
@@ -333,6 +350,12 @@ export function printStartupBanner(opts: {
     configLines += printConfig('MCP config (External)', {
       mcpServers: { things3: { url: `${tunnelUrl}${mcpPath}` } },
     });
+    if (token) {
+      configLines += printConfig(
+        'MCP config (External, header auth)',
+        headerAuthConfig(tunnelUrl, token),
+      );
+    }
   } else if (!tunnelProvider) {
     console.log(`  ${arrow}  ${pad('WEB:')}  ${cyan(base)}`);
     console.log(`  ${arrow}  ${pad('API:')}  ${magenta(`${base}/api`)}`);
@@ -346,6 +369,12 @@ export function printStartupBanner(opts: {
     configLines += printConfig('MCP config (Localhost MCP)', {
       mcpServers: { things3: { url: `${base}${mcpPath}` } },
     });
+    if (token) {
+      configLines += printConfig(
+        'MCP config (Localhost, header auth)',
+        headerAuthConfig(base, token),
+      );
+    }
   }
 
   configLines += printConfig('MCP config (CLI)', {

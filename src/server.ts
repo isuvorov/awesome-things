@@ -72,8 +72,23 @@ async function handleRoute(
   }
 
   // ── Health (no auth) ─────────────────────────────────────
-  if (pathname === '/health' && method === 'GET') {
-    return json({ ok: true, app: APP_ID, port: url.port });
+  // HEAD as well as GET: uptime monitors ping with HEAD and read only the status code,
+  // and a 401 there reads as an outage.
+  if (pathname === '/health' && (method === 'GET' || method === 'HEAD')) {
+    return method === 'HEAD'
+      ? new Response(null, { status: 200 })
+      : json({ ok: true, app: APP_ID, port: url.port });
+  }
+
+  // ── Uptime probes (no auth) ──────────────────────────────
+  // `/__up/<whatever>`: the suffix is the monitor's own service name, never ours, so
+  // anything under the prefix answers. Nothing here reveals state beyond "it is alive".
+  if (pathname === '/__up' || pathname.startsWith('/__up/')) {
+    if (method === 'GET' || method === 'HEAD') {
+      return method === 'HEAD'
+        ? new Response(null, { status: 200 })
+        : json({ ok: true, app: APP_ID, port: url.port });
+    }
   }
 
   // ── Favicon (no auth) ────────────────────────────────────

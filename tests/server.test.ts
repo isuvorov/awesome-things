@@ -170,6 +170,33 @@ describe('GET /health', () => {
   });
 });
 
+describe('/__up uptime probe', () => {
+  test('answers HEAD without auth — a 401 would read as an outage', async () => {
+    const res = await fetch(`${baseUrl}/__up/things-lan-axxx-dev`, { method: 'HEAD' });
+    expect(res.status).toBe(200);
+  });
+
+  test('answers GET on any suffix, and on the bare prefix', async () => {
+    for (const path of ['/__up', '/__up/anything/at/all']) {
+      const res = await fetch(`${baseUrl}${path}`);
+      expect(res.status).toBe(200);
+      expect((await res.json()).ok).toBe(true);
+    }
+  });
+
+  test('does not become a hole for other methods', async () => {
+    const res = await fetch(`${baseUrl}/__up`, { method: 'POST' });
+    expect(res.status).toBe(401);
+  });
+});
+
+describe('HEAD /health', () => {
+  test('answers without auth, like GET', async () => {
+    const res = await fetch(`${baseUrl}/health`, { method: 'HEAD' });
+    expect(res.status).toBe(200);
+  });
+});
+
 describe('GET /', () => {
   test('returns HTML home page without auth', async () => {
     const res = await fetch(`${baseUrl}/`);

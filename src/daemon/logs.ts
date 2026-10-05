@@ -10,6 +10,10 @@ export interface LogsOptions {
   lines?: number;
   stream?: LogStream;
   clear?: boolean;
+  /** Tail these exact files instead of this machine's defaults — the running server's own. */
+  files?: string[];
+  /** Skip the header: the caller already printed one. */
+  quiet?: boolean;
 }
 
 /**
@@ -55,7 +59,7 @@ function ensureFiles(files: string[]) {
 }
 
 export async function runLogs(options: LogsOptions = {}): Promise<number> {
-  const files = logFiles(options.stream);
+  const files = options.files?.length ? options.files : logFiles(options.stream);
   ensureFiles(files);
 
   if (options.clear) {
@@ -64,7 +68,7 @@ export async function runLogs(options: LogsOptions = {}): Promise<number> {
     return 0;
   }
 
-  if (isInteractive) {
+  if (isInteractive && !options.quiet) {
     for (const file of files) console.log(`  ${dim(`── ${file}`)}`);
     // Say plainly that this terminal is a reader, not the server: "stop" would read as
     // "stop the daemon", and a second window showing live logs looks like a second server.

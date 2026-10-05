@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test';
-import { formatAlreadyRunning } from '../src/server/attach.js';
+import { existsSync } from 'node:fs';
+import { logFiles } from '../src/daemon/logs.js';
+import { resolveLogFiles } from '../src/server/attach.js';
 import { isProbePath } from '../src/server/http.js';
-import { stripAnsi } from '../src/server/logger.js';
 import { resolveTunnelProvider } from '../src/utils/tunnel.js';
 
 // Simple flag to control mock data responses
@@ -201,22 +202,31 @@ describe('/__up uptime probe', () => {
   });
 });
 
-describe('formatAlreadyRunning', () => {
-  const text = stripAnsi(formatAlreadyRunning(32121, 'secret-token'));
-
-  test('names the port that is taken instead of just refusing', () => {
-    expect(text).toContain('is already running');
-    expect(text).toContain('on port 32121');
+describe('attaching to a running instance', () => {
+  test('/health tells an authorised caller who serves and where it logs', async () => {
+    const res = await fetch(`${baseUrl}/health`, { headers: authHeaders(TEST_TOKEN) });
+    const data = await res.json();
+    expect(data.pid).toBe(process.pid);
+    expect(data.logs?.length).toBe(2);
+    expect(typeof data.tty).toBe('boolean');
   });
 
-  test('hands over everything needed to use that instance', () => {
-    expect(text).toContain('http://localhost:32121/api');
-    expect(text).toContain('secret-token');
-    expect(text).toContain('http://localhost:32121/mcp');
+  test('an anonymous probe learns only that it is alive', async () => {
+    const data = await (await fetch(`${baseUrl}/health`)).json();
+    expect(data.ok).toBe(true);
+    // pid and log paths would leak over the tunnel, where /health is public.
+    expect(data.pid).toBeUndefined();
+    expect(data.logs).toBeUndefined();
   });
 
-  test('says nothing about a token when auth is off', () => {
-    expect(stripAnsi(formatAlreadyRunning(32121, undefined))).not.toContain('Token:');
+  test('prefers the paths the running server reported over local guesses', () => {
+    const real = logFiles()[0]!;
+    expect(resolveLogFiles({ logs: [real, '/nope/missing.log'] })).toEqual([real]);
+  });
+
+  test('falls back to local defaults when the server said nothing', () => {
+    // An older build answers without `logs`; attaching must still find something.
+    expect(resolveLogFiles({})).toEqual(logFiles().filter((f) => existsSync(f)));
   });
 });
 

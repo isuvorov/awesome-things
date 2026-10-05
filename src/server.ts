@@ -23,6 +23,7 @@ import {
   updateTodo,
 } from './api.js';
 import { defaultPort } from './config.js';
+import { logFiles } from './daemon/logs.js';
 import { errorMessage } from './server/errors.js';
 import { installProcessGuards } from './server/guards.js';
 import { body, handle, isProbePath, json, MCP_CORS_HEADERS } from './server/http.js';
@@ -75,9 +76,16 @@ async function handleRoute(
   // HEAD as well as GET: uptime monitors ping with HEAD and read only the status code,
   // and a 401 there reads as an outage.
   if (pathname === '/health' && (method === 'GET' || method === 'HEAD')) {
-    return method === 'HEAD'
-      ? new Response(null, { status: 200 })
-      : json({ ok: true, app: APP_ID, port: url.port });
+    if (method === 'HEAD') return new Response(null, { status: 200 });
+    // pid and log paths go only to a caller holding the token: a second `server` run uses
+    // them to attach, while an anonymous probe over the tunnel learns nothing but "alive".
+    const authed = checkAuth(req, token) === null;
+    return json({
+      ok: true,
+      app: APP_ID,
+      port: url.port,
+      ...(authed ? { pid: process.pid, tty: Boolean(process.stdout.isTTY), logs: logFiles() } : {}),
+    });
   }
 
   // ── Uptime probes (no auth, not logged) ──────────────────

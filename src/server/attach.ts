@@ -1,65 +1,70 @@
-import { bold, cyan, dim, green, magenta, stripAnsi, useColor, yellow } from './logger.js';
-import { APP_ID } from './port.js';
+import { existsSync } from 'node:fs';
+import { logFiles, runLogs } from '../daemon/logs.js';
+import { dim, printStartupBanner, yellow } from './logger.js';
 
-/**
- * What a second `server` can say about the instance already holding the port. It cannot
- * take the port, and it cannot read the other process's stdout either — the two share no
- * terminal. Reporting where that instance lives is the useful part.
- */
-export function formatAlreadyRunning(port: number, token: string | undefined): string {
-  const base = `http://localhost:${port}`;
-  const arrow = green(bold('➜'));
-  const pad = (s: string) => s.padEnd(9);
-  const lines = [
-    '',
-    `  ${bold(green(APP_ID))} ${bold('is already running')} ${dim(`on port ${port}`)}`,
-    '',
-    `  ${arrow}  ${pad('WEB:')} ${cyan(base)}`,
-    `  ${arrow}  ${pad('API:')} ${magenta(`${base}/api`)}`,
-  ];
-  if (token) lines.push(`  ${arrow}  ${pad('Token:')} ${yellow(token)}`);
-  lines.push(`  ${arrow}  ${pad('MCP:')} ${cyan(`${base}/mcp`)}`);
-  lines.push('');
-  lines.push(dim('  ── Next ──'));
-  lines.push(`  ${cyan('awesome-things daemon logs -f')}  ${dim('follow the logs live')}`);
-  lines.push(`  ${cyan('awesome-things daemon status ')}  ${dim('check whether it is alive')}`);
-  lines.push('');
-
-  const text = lines.join('\n');
-  return useColor ? text : stripAnsi(text);
+export interface InstanceInfo {
+  pid?: number;
+  /** The running server writes to a terminal, so there is no file to read. */
+  tty?: boolean;
+  logs?: string[];
 }
 
 /**
- * The launchd agent, when it is the thing holding this port. Only then is there a log
- * file to follow: a hand-started server writes to a terminal this process cannot reach.
+ * Ask the instance that owns the port who it is. `/health` answers pid and log paths only
+ * to a caller holding the token, which a second `server` run always has.
  */
-export async function runningDaemonOnPort(port: number) {
-  if (process.platform !== 'darwin') return null;
+export async function fetchInstanceInfo(
+  port: number,
+  token: string | undefined,
+): Promise<InstanceInfo> {
   try {
-    const { daemonStatus } = await import('../daemon/ops.js');
-    const status = await daemonStatus();
-    return status.installed && status.running && status.port === port ? status : null;
+    const res = await fetch(`http://localhost:${port}/health`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      signal: AbortSignal.timeout(2000),
+    });
+    if (!res.ok) return {};
+    const data = (await res.json()) as InstanceInfo;
+    return { pid: data.pid, tty: data.tty, logs: data.logs };
   } catch {
-    return null;
+    // An older build, a wrong token, or a server too busy to answer — attach blindly.
+    return {};
   }
 }
 
 /**
- * Report the running instance and, when it is the daemon, attach to its logs — the
- * closest thing to "connect to the first one" that two separate processes can do.
+ * Which file to tail. The running instance reports its own paths, which beat this
+ * process's guess whenever the two disagree about AWESOME_THINGS_LOG_DIR.
+ */
+export function resolveLogFiles(info: InstanceInfo): string[] {
+  const candidates = info.logs?.length ? info.logs : logFiles();
+  return candidates.filter((file) => existsSync(file));
+}
+
+/**
+ * A second `server` cannot take a port its own twin already holds. Instead of refusing,
+ * it prints the same banner and becomes a reader of that instance's log file — same
+ * window, same information, minus the serving.
  */
 export async function attachToRunning(port: number, token: string | undefined): Promise<void> {
-  const daemon = await runningDaemonOnPort(port);
-  if (!daemon) {
-    console.log(formatAlreadyRunning(port, token));
+  const info = await fetchInstanceInfo(port, token);
+  const files = resolveLogFiles(info);
+
+  printStartupBanner({
+    port,
+    startPort: port,
+    token,
+    reader: { pid: info.pid, logFile: files[0] },
+  });
+
+  if (!files.length) {
+    const where = info.tty ? 'its own terminal' : 'a place this process cannot read';
+    console.log(`  ${yellow('⚠')}  No log file to follow — the server writes to ${where}.`);
+    console.log(`     ${dim('Run it as a daemon to get log files: awesome-things daemon')}`);
+    console.log();
     return;
   }
 
-  const { formatDaemonResult } = await import('../daemon/format.js');
-  console.log(formatDaemonResult(daemon));
-
-  // Only a human at a terminal wants an endless tail; a script must still exit.
+  // Only a human at a terminal wants an endless tail; piped output must still end.
   if (!process.stdout.isTTY) return;
-  const { runLogs } = await import('../daemon/logs.js');
-  await runLogs({ follow: true, lines: 20 });
+  await runLogs({ follow: true, lines: 20, files, quiet: true });
 }

@@ -290,8 +290,13 @@ export function printStartupBanner(opts: {
   tunnelUrl?: string;
   tunnelProvider?: string;
   skipHeader?: boolean;
+  /**
+   * This run serves nothing: another process owns the port and this one only tails its
+   * log file. Everything else is printed as usual, so the window looks like a server.
+   */
+  reader?: { pid?: number; logFile?: string };
 }) {
-  const { port, startPort, token, tunnelUrl, tunnelProvider, skipHeader } = opts;
+  const { port, startPort, token, tunnelUrl, tunnelProvider, skipHeader, reader } = opts;
   const base = `http://localhost:${port}`;
   const arrow = green(bold('➜'));
   const pad = (s: string) => s.padEnd(10);
@@ -299,7 +304,8 @@ export function printStartupBanner(opts: {
 
   if (!skipHeader) {
     console.log();
-    console.log(`  ${bold(green(appName))} ${dim(`v${appVersion}`)}`);
+    const title = `  ${bold(green(appName))} ${dim(`v${appVersion}`)}`;
+    console.log(reader ? `${title} ${yellow(bold('· log reader'))}` : title);
     console.log();
     if (port !== startPort) {
       console.log(`  ${yellow('⚠')}  Port ${startPort} busy, using ${bold(String(port))}`);
@@ -377,6 +383,19 @@ export function printStartupBanner(opts: {
   configLines += printConfig('MCP config (CLI)', {
     mcpServers: { things3: { command: `npx -y ${appName} mcp` } },
   });
+
+  if (reader) {
+    // Spell out that this window serves nothing, and where the lines below come from.
+    const served = reader.pid ? `PID ${reader.pid}` : 'another process';
+    console.log(`  ${yellow('⚠')}  This window is NOT the server — ${served} serves port ${port}.`);
+    console.log(`     ${dim(`This process (PID ${process.pid}) only tails the log below.`)}`);
+    if (reader.logFile) console.log(`     ${dim(`Reading ${reader.logFile}`)}`);
+    console.log(`     ${dim('Ctrl+C stops reading; the server keeps running.')}`);
+    console.log();
+    // No request box: those lines are drawn for requests this process will never handle.
+    requestBox = null;
+    return;
+  }
 
   requestBox = isTty ? new RequestBox(configLines) : null;
 }

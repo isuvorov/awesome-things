@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { logFiles } from '../src/daemon/logs.js';
 import { resolveLogFiles } from '../src/server/attach.js';
 import { isProbePath } from '../src/server/http.js';
@@ -220,8 +222,15 @@ describe('attaching to a running instance', () => {
   });
 
   test('prefers the paths the running server reported over local guesses', () => {
-    const real = logFiles()[0]!;
-    expect(resolveLogFiles({ logs: [real, '/nope/missing.log'] })).toEqual([real]);
+    // A file of our own — the daemon's log only exists on a machine that ran it, not in CI.
+    const dir = mkdtempSync(join(tmpdir(), 'awesome-things-attach-'));
+    const real = join(dir, 'server.log');
+    writeFileSync(real, '');
+    try {
+      expect(resolveLogFiles({ logs: [real, '/nope/missing.log'] })).toEqual([real]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   test('falls back to local defaults when the server said nothing', () => {

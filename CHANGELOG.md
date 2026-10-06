@@ -1,3 +1,20 @@
+# [1.6.0](https://github.com/isuvorov/awesome-things/compare/v1.5.0...v1.6.0) (2026-10-06)
+
+
+### Bug Fixes
+
+* **daemon:** stop daemon logs from always following, and keep colour in the log files ([16bdfb5](https://github.com/isuvorov/awesome-things/commit/16bdfb50d07c14a2fe9610d21a8fad743123e894))
+
+
+### Features
+
+* **daemon:** move logs to ~/.local/share and add a top-level logs command ([82ab8f0](https://github.com/isuvorov/awesome-things/commit/82ab8f012df2a0e938c20c7ab1d2ea56518d8665))
+* **server:** answer uptime probes on /__up and HEAD /health without auth ([99c5b9d](https://github.com/isuvorov/awesome-things/commit/99c5b9d338271075d0350bdbf4aa6e1fc5bd704c))
+* **server:** keep probe traffic out of the log and drop the path-token localhost config ([47542ff](https://github.com/isuvorov/awesome-things/commit/47542ff6c731934a9eb9425f9f45388eabd33aba))
+* **server:** make a second server run a log reader for the instance that owns the port ([dea2ff9](https://github.com/isuvorov/awesome-things/commit/dea2ff9ee7a36ebc0fb59979cd1e88f2cde1c811))
+* **server:** print an MCP config that sends the token as a Bearer header ([cfda2bf](https://github.com/isuvorov/awesome-things/commit/cfda2bfdf8d8a47119ef3e92504d4ab497106682))
+* **server:** report the running instance and follow its logs instead of refusing the port ([10b7d16](https://github.com/isuvorov/awesome-things/commit/10b7d1629f0d6cb98e2b42d1e5fb5aaf49e7c3d7))
+
 # [1.5.0](https://github.com/isuvorov/awesome-things/compare/v1.4.0...v1.5.0) (2026-10-03)
 
 

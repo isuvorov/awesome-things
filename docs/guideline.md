@@ -202,6 +202,12 @@ ignored key), maps it through `toEnvironment()` and writes into `process.env` on
 set yet, under any accepted alias (`FRP_X` blocks `frp.x` as much as `AWESOME_THINGS_FRP_X` does).
 So: flag > env > file > default, and every consumer keeps reading `process.env`.
 
+- **Comments:** JSON has none, so keys starting with `_` or `//` are dropped by
+  `stripCommentKeys()` at every depth before zod sees the object, and `configJsonSchema()` adds a
+  matching `patternProperties` next to every `additionalProperties: false`. `"_frp": {...}`
+  disables a section; a key without the prefix is still a typo and still fails.
+- `tests/preload.ts` (bunfig `preload`) points `AWESOME_THINGS_CONFIG` at a missing file — a
+  developer's real config must never leak into tests, or make them exit when unreadable.
 - `autoload.ts` is the first import of each entry point because `config.ts` reads
   `AWESOME_THINGS_PORT` at import time. A broken file exits with code 1 and the zod error — a server
   with half a config (no token) is worse than no server. A mode looser than `600` warns, like ssh.
@@ -302,6 +308,13 @@ machine (`~/.local/share/openhealth/logs/`, `~/.local/share/vibe-manager/logs/`)
 macOS `~/Library/Logs`. `AWESOME_THINGS_LOG_DIR` overrides the directory outright, `XDG_DATA_HOME`
 moves the base. The paths are frozen into `StandardOutPath`/`StandardErrorPath`, so changing either
 variable needs a fresh `daemon install`.
+
+**The log holds events, not the banner.** Without a TTY, `startServer()` skips
+`printStartupBanner()` — MCP client configs are setup help for a person, and they contain the
+token — and writes `logEvent()` lines in the request-line format instead: `started` (version, pid,
+URL, busy-port note, auth on/OFF, config file), `tunnel` (provider and public URL) and `stopped`
+(SIGTERM from launchd, SIGINT). The signal handlers exit 143/130, not 0: KeepAlive's
+`SuccessfulExit: false` must still treat a kill as something to recover from.
 
 **Logs are the only UI a daemon has.** `logger.ts` already degrades to plain, ANSI-free lines when
 stdout is not a TTY, so the files stay readable. `daemon logs` shells out to `tail` with `-F`

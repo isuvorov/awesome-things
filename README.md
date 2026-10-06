@@ -270,6 +270,10 @@ things daemon stop                 # stop without uninstalling
 things daemon uninstall            # stop and remove the agent (--purge also drops the logs)
 ```
 
+The log holds events, not the startup banner: one `started` line (version, pid, URL, auth,
+config file), `tunnel` when one opens, `stopped` on SIGTERM, then a line per request. The token
+and the MCP client configs are only printed to a terminal.
+
 **Watching it work** — the daemon has no terminal, so the logs are the way in:
 
 ```bash
@@ -359,6 +363,9 @@ or any path in `AWESOME_THINGS_CONFIG`). Every key mirrors an environment variab
 }
 ```
 
+- **Comments:** JSON has none, so any key starting with `_` or `//` is ignored at every level —
+  `"_frp": {...}` switches a section off, `"_note": "..."` explains a value. Any other unknown key
+  is a typo and an error.
 - **Precedence:** CLI flag > environment variable > `config.json` > default.
 - `$schema` gives your editor autocompletion and validation; the schema ships in the npm package.
 - An invalid file stops the process with the exact field at fault — a server never starts with

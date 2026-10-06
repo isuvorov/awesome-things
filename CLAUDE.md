@@ -160,6 +160,10 @@ src/
 - **Log paths follow the rest of the machine**, not macOS: `~/.local/share/<app>/logs/` like
   `openhealth` and `vibe-manager`, overridable with `AWESOME_THINGS_LOG_DIR` or `XDG_DATA_HOME`.
   Never move them back to `~/Library/Logs` — one place everywhere beats a per-OS convention
+- **The log holds events, not the banner** — without a TTY `startServer()` prints `logEvent()`
+  lines (`started` with version/pid/URL/auth/config, `tunnel`, `stopped` on SIGTERM/SIGINT with
+  exit 143/130 so KeepAlive still restarts a killed job). The banner with token and MCP configs is
+  terminal-only — never write the token into a log file
 - **Logs are the only UI**: launchd redirects stdout/stderr to `~/.local/share/awesome-things/logs/`,
   `logger.ts` prints unboxed lines when stdout is not a TTY, and `daemon logs -f` tails with `-F`
   so following survives the 10 MB rotation
@@ -183,6 +187,10 @@ src/
   `bun run build:schema` after any schema change — a test fails if it is stale
 - `daemon install` keeps keys that came from the file **out of the plist**, so editing the file
   plus `daemon restart` is enough; only flags and shell env get frozen
+- **Comment keys:** `_x`, `__x`, `//` are stripped by `stripCommentKeys()` before validation, and
+  `config.schema.json` allows them via `patternProperties`. Every other unknown key stays an error
+- Tests never see the developer's config: `tests/preload.ts` (bunfig `preload`) points
+  `AWESOME_THINGS_CONFIG` at a missing file
 - `test:unit` globs `tests/[!s]*.test.ts` — a test file starting with `s` silently never runs
 
 ## Key Architecture

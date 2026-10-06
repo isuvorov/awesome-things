@@ -1,7 +1,13 @@
 import { afterAll, describe, expect, test } from 'bun:test';
 import { errorMessage, formatError, isClientAbort } from '../src/server/errors.js';
 import { installProcessGuards, resetProcessGuardsForTests } from '../src/server/guards.js';
-import { headerAuthConfig, logError, maskSecrets } from '../src/server/logger.js';
+import {
+  formatEvent,
+  headerAuthConfig,
+  logError,
+  maskSecrets,
+  stripAnsi,
+} from '../src/server/logger.js';
 
 describe('errorMessage', () => {
   test('reads message from Error', () => {
@@ -177,5 +183,19 @@ describe('headerAuthConfig', () => {
 
   test('sends it the way checkAuth expects', () => {
     expect(config.mcpServers.things3.headers.Authorization).toBe('Bearer s3cret');
+  });
+});
+
+describe('formatEvent', () => {
+  const at = new Date(2026, 9, 6, 16, 38, 43);
+
+  test('one line: time, event, details', () => {
+    const line = stripAnsi(formatEvent('started', ['v1.6.1', 'pid 42', 'auth on'], at));
+    expect(line).toBe('16:38:43 started v1.6.1 · pid 42 · auth on');
+  });
+
+  test('skips empty details instead of printing dangling separators', () => {
+    const line = stripAnsi(formatEvent('stopped', ['SIGTERM', '', ''], at));
+    expect(line).toBe('16:38:43 stopped SIGTERM');
   });
 });

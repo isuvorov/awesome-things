@@ -226,6 +226,21 @@ export function logRequest(
 }
 
 /**
+ * One line per lifecycle event. A log file is read for what happened and when — the banner
+ * with MCP configs is setup help for a person at a terminal, and it carries the token.
+ */
+export function formatEvent(name: string, details: string[], now: Date = new Date()): string {
+  const time = dim(now.toLocaleTimeString('en-GB', { hour12: false }));
+  const text = details.filter(Boolean).join(dim(' · '));
+  return `${time} ${bold(cyan(name.padEnd(7)))} ${text}`;
+}
+
+export function logEvent(name: string, ...details: string[]) {
+  const line = formatEvent(name, details);
+  console.log(useColor ? line : stripAnsi(line));
+}
+
+/**
  * Log an error without ever throwing from the logger itself and without
  * corrupting the request box. Errors are what the user came here to read.
  */

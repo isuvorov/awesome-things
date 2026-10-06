@@ -23,7 +23,7 @@ import {
   updateProject,
   updateTodo,
 } from './api.js';
-import { defaultPort } from './config.js';
+import { appVersion, defaultPort } from './config.js';
 import { logFiles } from './daemon/logs.js';
 import { errorMessage } from './server/errors.js';
 import { installProcessGuards } from './server/guards.js';
@@ -32,12 +32,14 @@ import {
   isInteractive,
   type LogExtra,
   logError,
+  logEvent,
   logRequest,
   printStartupBanner,
   yellow,
 } from './server/logger.js';
 import { handleMcpRequest, type McpLogSink } from './server/mcp-http.js';
 import { APP_ID, MAX_PORT_ATTEMPTS, probePort } from './server/port.js';
+import { loadUserConfig } from './settings/load.js';
 import { authCookieHeader, checkAuth, extractPathToken, resolveToken } from './utils/auth.js';
 import { createServer } from './utils/create-server.js';
 import {
@@ -379,8 +381,11 @@ export async function startServer(options: ServerOptions = {}) {
   // module directly and used to ignore AWESOME_THINGS_TUNNEL entirely.
   const tunnelProvider = options.tunnel ?? resolveTunnelProvider();
   let tunnelUrl: string | undefined;
+  // A terminal gets the banner; a log file gets events — see logEvent.
+  const banner: typeof printStartupBanner = isInteractive ? printStartupBanner : () => {};
+  if (!isInteractive) logStarted({ port, startPort, token });
   if (tunnelProvider) {
-    printStartupBanner({ port, startPort, token, tunnelProvider });
+    banner({ port, startPort, token, tunnelProvider });
     const frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
     let i = 0;
     // A spinner in a log file is just noise — only animate on a real terminal.
@@ -405,12 +410,45 @@ export async function startServer(options: ServerOptions = {}) {
       stopSpinner();
       logError(`Tunnel (${tunnelProvider}) failed — the local server keeps running`, err);
     }
-    printStartupBanner({ port, startPort, token, tunnelUrl, skipHeader: true });
+    if (tunnelUrl && !isInteractive) logEvent('tunnel', tunnelProvider, tunnelUrl);
+    banner({ port, startPort, token, tunnelUrl, skipHeader: true });
   } else {
-    printStartupBanner({ port, startPort, token });
+    banner({ port, startPort, token });
   }
 
   return server;
+}
+
+function logStarted({
+  port,
+  startPort,
+  token,
+}: {
+  port: number;
+  startPort: number;
+  token: string | undefined;
+}) {
+  const config = loadUserConfig();
+  logEvent(
+    'started',
+    `v${appVersion}`,
+    `pid ${process.pid}`,
+    `http://localhost:${port}`,
+    port !== startPort ? yellow(`port ${startPort} was busy`) : '',
+    token ? 'auth on' : yellow('auth OFF'),
+    config.loaded ? `config ${config.path}` : '',
+  );
+  // launchd stops a job with SIGTERM. Say so, and keep a non-zero code: KeepAlive treats a
+  // kill as a crash to recover from, and an exit 0 would stop that.
+  for (const [signal, code] of [
+    ['SIGTERM', 143],
+    ['SIGINT', 130],
+  ] as const) {
+    process.once(signal, () => {
+      logEvent('stopped', signal);
+      process.exit(code);
+    });
+  }
 }
 
 if (import.meta.main) {

@@ -11,7 +11,7 @@ import {
   type LauncherPaths,
   launcherPaths,
 } from '../src/daemon/launcher.js';
-import { resolveProgramArguments } from '../src/daemon/plist.js';
+import { buildPlist, resolveProgramArguments } from '../src/daemon/plist.js';
 import { stripAnsi } from '../src/server/logger.js';
 
 describe('buildInfoPlist', () => {
@@ -57,6 +57,21 @@ describe('launcher in ProgramArguments', () => {
         launcher: '/L.app/Contents/MacOS/x',
       }),
     ).toEqual(['/L.app/Contents/MacOS/x', '/bun', '/cli.js', 'server']);
+  });
+
+  test('ties the launchd job to the bundle, so Login Items shows its name and icon', () => {
+    const base = {
+      label: 'l',
+      programArguments: ['/x'],
+      environment: {},
+      workingDirectory: '/',
+      outLog: '/o',
+      errLog: '/e',
+    };
+    expect(buildPlist({ ...base, associatedBundleId: 'com.isuvorov.awesome-things' })).toContain(
+      '<key>AssociatedBundleIdentifiers</key>\n  <array>\n    <string>com.isuvorov.awesome-things</string>',
+    );
+    expect(buildPlist(base)).not.toContain('AssociatedBundleIdentifiers');
   });
 
   test('status names the bundle, or flags a bare runtime', () => {

@@ -26,7 +26,7 @@ import {
   readPlistJson,
   type ServiceState,
 } from './launchctl.js';
-import { ensureLauncher } from './launcher.js';
+import { ensureLauncher, launcherBundleId } from './launcher.js';
 import { daemonPaths } from './paths.js';
 import { buildPlist, collectEnvironment, resolveProgramArguments } from './plist.js';
 
@@ -351,6 +351,7 @@ async function preparePlist(options: InstallOptions): Promise<PreparedPlist> {
     workingDirectory: homedir(),
     outLog: paths.outLog,
     errLog: paths.errLog,
+    associatedBundleId: launcher ? launcherBundleId : undefined,
   });
 
   return { plist, port, token, storedToken: stored.token, warnings, hints };

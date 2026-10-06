@@ -306,7 +306,9 @@ The design decisions worth knowing:
   The bundle carries `assets/AppIcon.icns` (`CFBundleIconFile`), copied in *before* signing so the
   seal covers it; `findAppIcon()` searches upwards because `src/daemon/` and the flattened `lib/`
   sit at different depths. After signing, `lsregister -f` registers the bundle with LaunchServices
-  so System Settings → General → Login Items shows the icon instead of a generic "exec". The icon
+  so System Settings can resolve it, and the launchd plist names it in
+  `AssociatedBundleIdentifiers`: Login Items attributes a bare launchd job by its executable and
+  draws a generic "exec" icon otherwise (the bundle icon alone did not change that). The icon
   is part of `launcherFingerprint()`: replacing it rebuilds the bundle and costs one prompt.
   `bun run build:icon` (`scripts/app-icon.ts`) regenerates it from `docs/logo.png`, cropped to the
   tray with the star — the lettering is unreadable at 32px.

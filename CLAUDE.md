@@ -173,7 +173,8 @@ src/
 - **The launcher icon** is `assets/AppIcon.icns` (shipped in `files`), regenerated from
   `docs/logo.png` by `bun run build:icon` — the tray with the star, no lettering. It is part of the
   fingerprint, so changing it costs every user one Automation prompt; `lsregister -f` after
-  signing makes System Settings show it instead of the generic "exec"
+  signing registers the bundle, and the launchd plist names it in `AssociatedBundleIdentifiers` —
+  without that key Login Items draws the job with the generic "exec" icon
 - **Log paths follow the rest of the machine**, not macOS: `~/.local/share/<app>/logs/` like
   `openhealth` and `vibe-manager`, overridable with `AWESOME_THINGS_LOG_DIR` or `XDG_DATA_HOME`.
   Never move them back to `~/Library/Logs` — one place everywhere beats a per-OS convention

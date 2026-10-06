@@ -134,10 +134,22 @@ export interface PlistInput {
   workingDirectory: string;
   outLog: string;
   errLog: string;
+  /**
+   * Bundle id of the launcher app. Login Items draws a bare launchd job with the generic "exec"
+   * icon; this key is how macOS attributes the job to an app and shows its name and icon.
+   */
+  associatedBundleId?: string;
 }
 
 export function buildPlist(input: PlistInput): string {
   const { label, programArguments, environment, workingDirectory, outLog, errLog } = input;
+  const associated = input.associatedBundleId
+    ? `  <key>AssociatedBundleIdentifiers</key>
+  <array>
+    <string>${escapeXml(input.associatedBundleId)}</string>
+  </array>
+`
+    : '';
   const args = programArguments.map((arg) => `    <string>${escapeXml(arg)}</string>`).join('\n');
   const env = Object.entries(environment)
     .map(
@@ -152,7 +164,7 @@ export function buildPlist(input: PlistInput): string {
 <dict>
   <key>Label</key>
   <string>${escapeXml(label)}</string>
-  <key>ProgramArguments</key>
+${associated}  <key>ProgramArguments</key>
   <array>
 ${args}
   </array>

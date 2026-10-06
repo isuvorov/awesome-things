@@ -258,6 +258,7 @@ things daemon --port 41234    # a plist setting rewrites the agent (see planUp)
 |---|---|---|
 | No plist | `install` | First run |
 | A plist setting was passed | `install` | `start` would silently ignore `--port`/`--token`/`--tunnel`/`--domain` |
+| Installed plist ≠ what install would write now | `install` | `isPlistStale()` — a plist from an older version (no launcher, a deleted Cellar runtime path) would otherwise be started unchanged forever |
 | `/health` answers | nothing | A needless restart hands the tunnel domain to a new process |
 | launchd runs it, nothing answers | `restart` | `bootstrap` would return "already loaded" and change nothing |
 | Installed and down | `start` | — |
@@ -283,6 +284,9 @@ The design decisions worth knowing:
 - **`ProgramArguments` is `[launcher, process.execPath, realpath(argv[1]), 'server']`.** Never
   the bin itself: after `npm link` it is a symlink, and its exec bit and shebang cannot be trusted —
   launchd would fail with a bare "Operation not permitted".
+- **No Homebrew Cellar paths in the plist.** `process.execPath` under Homebrew is
+  `/opt/homebrew/Cellar/node/<version>/bin/node`, which `brew upgrade` deletes. `stableExecPath()`
+  uses `<prefix>/bin/<name>` instead whenever that symlink resolves to the same file.
 - **The launcher is the Automation identity (`launcher.ts`).** macOS grants Apple Events to the
   *responsible process*, and children inherit it: `osascript` from a terminal acts as the terminal,
   under launchd it acts as the job binary — `bun` or `node`. Granting those would let every script

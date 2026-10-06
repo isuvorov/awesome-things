@@ -255,8 +255,24 @@ async function buildResult(
   };
 }
 
-export async function installDaemon(options: InstallOptions = {}): Promise<DaemonResult> {
-  assertDarwin();
+/** `up` prepares the plist twice (compare, then install) — build once, keep the "built" news. */
+let launcherOnce: ReturnType<typeof ensureLauncher> | undefined;
+
+interface PreparedPlist {
+  plist: string;
+  port: number;
+  token?: string;
+  storedToken?: string;
+  warnings: string[];
+  hints: string[];
+}
+
+/**
+ * Everything `install` would write, without writing the plist. `up` compares it with the one on
+ * disk: a plist from an older version (no launcher, a Cellar path that is gone) has to be
+ * reinstalled even when nobody passed a flag.
+ */
+async function preparePlist(options: InstallOptions): Promise<PreparedPlist> {
   const paths = daemonPaths();
   const warnings: string[] = [];
   const hints: string[] = [];
@@ -292,13 +308,12 @@ export async function installDaemon(options: InstallOptions = {}): Promise<Daemo
 
   mkdirSync(paths.logDir, { recursive: true });
   mkdirSync(dirname(paths.plist), { recursive: true });
-  rotateIfLarge(paths.outLog);
-  rotateIfLarge(paths.errLog);
 
   // Automation goes to the responsible process; without the launcher that is bun or node.
   let launcher: string | undefined;
   if (options.launcher !== false) {
-    const built = await ensureLauncher();
+    launcherOnce ??= ensureLauncher();
+    const built = await launcherOnce;
     launcher = built.executable;
     if (built.error) {
       warnings.push(
@@ -311,8 +326,9 @@ export async function installDaemon(options: InstallOptions = {}): Promise<Daemo
     }
   }
 
+  const execPath = stableExecPath(process.execPath);
   const programArguments = resolveProgramArguments({
-    execPath: process.execPath,
+    execPath,
     bin: realBin,
     noToken: options.noToken,
     launcher,
@@ -322,7 +338,7 @@ export async function installDaemon(options: InstallOptions = {}): Promise<Daemo
     label: paths.label,
     programArguments,
     environment: collectEnvironment({
-      execPath: process.execPath,
+      execPath,
       home: homedir(),
       env: shellEnv,
       port: pinnedPort,
@@ -336,6 +352,45 @@ export async function installDaemon(options: InstallOptions = {}): Promise<Daemo
     outLog: paths.outLog,
     errLog: paths.errLog,
   });
+
+  return { plist, port, token, storedToken: stored.token, warnings, hints };
+}
+
+/**
+ * Homebrew runs a binary from `/opt/homebrew/Cellar/node/26.10.0_1/bin/node`, and that path is
+ * deleted by the next `brew upgrade`. When the stable `<prefix>/bin/<name>` symlink points at the
+ * same file, the plist gets the symlink and survives upgrades.
+ */
+export function stableExecPath(
+  execPath: string,
+  resolve: (path: string) => string | undefined = (path) => {
+    try {
+      return realpathSync(path);
+    } catch {
+      return undefined;
+    }
+  },
+): string {
+  const match = execPath.match(/^(.*)\/Cellar\/[^/]+\/[^/]+\/bin\/([^/]+)$/);
+  if (!match) return execPath;
+  const candidate = `${match[1]}/bin/${match[2]}`;
+  return resolve(candidate) === resolve(execPath) ? candidate : execPath;
+}
+
+/** True when `install` would write something other than the plist on disk. */
+async function isPlistStale(options: InstallOptions): Promise<boolean> {
+  const { plist } = await preparePlist(options);
+  return readTextFile(daemonPaths().plist) !== plist;
+}
+
+export async function installDaemon(options: InstallOptions = {}): Promise<DaemonResult> {
+  assertDarwin();
+  const paths = daemonPaths();
+  const prepared = await preparePlist(options);
+  const { plist, port, token, warnings, hints } = prepared;
+  const stored = { token: prepared.storedToken };
+  rotateIfLarge(paths.outLog);
+  rotateIfLarge(paths.errLog);
 
   // Comparing the bytes is what makes install idempotent: the same flags and env produce the
   // same plist, and an unchanged plist is never a reason to restart a running daemon.
@@ -555,6 +610,8 @@ export interface UpStateInput {
   healthy: boolean;
   /** A --port/--token/--tunnel/--domain flag was passed, so the plist must be rewritten. */
   overrides?: boolean;
+  /** The installed plist differs from what install would write now (older version, moved binary). */
+  stale?: boolean;
 }
 
 /**
@@ -565,8 +622,8 @@ export interface UpStateInput {
  * to be a restart rather than a start — launchd already holds the job, so `bootstrap`
  * would return "already loaded" and change nothing.
  */
-export function planUp({ installed, running, healthy, overrides }: UpStateInput): UpPlan {
-  if (!installed || overrides) return 'install';
+export function planUp({ installed, running, healthy, overrides, stale }: UpStateInput): UpPlan {
+  if (!installed || overrides || stale) return 'install';
   if (healthy) return 'nothing';
   return running ? 'restart' : 'start';
 }
@@ -587,6 +644,9 @@ export async function upDaemon(options: InstallOptions = {}): Promise<DaemonResu
     running: state.running,
     healthy: (await probePort(port)) === 'ours',
     overrides: hasConfigOverrides(options),
+    // Without this, `up` after an upgrade would start the old plist forever — no launcher,
+    // and a runtime path that may already be gone.
+    stale: existsSync(paths.plist) && (await isPlistStale(options)),
   });
 
   if (plan === 'install') return { ...(await installDaemon(options)), action: 'up' };

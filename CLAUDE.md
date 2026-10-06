@@ -138,7 +138,9 @@ src/
 
 ## Daemon Rules (`awesome-things daemon`)
 - **`daemon` with no subcommand is `daemon up`** — `planUp()` in `ops.ts` decides: no plist →
-  install, a plist flag passed → reinstall, `/health` already answers → **do nothing** (a restart
+  install, a plist flag passed **or the installed plist differs from what install would write
+  now** (older version without the launcher, a gone Cellar path) → reinstall, `/health` already
+  answers → **do nothing** (a restart
   would hand the frp domain to a new process), launchd runs it but nothing answers → restart,
   installed and down → start. It then attaches to the logs, except under `--json` or a non-TTY
   stdout. Starting it is still the user's step, never the agent's
@@ -158,6 +160,9 @@ src/
   already held by its own twin, and a plain `KeepAlive` would turn that into a respawn loop
 - `ProgramArguments` is `[launcher, process.execPath, realpath(argv[1]), 'server']` — never the
   bare bin, whose shebang and exec bit cannot be relied on after `npm link`
+- **Never pin a Homebrew Cellar path** — `stableExecPath()` swaps
+  `/opt/homebrew/Cellar/node/<ver>/bin/node` for `/opt/homebrew/bin/node` when it is the same file;
+  `brew upgrade` deletes the versioned one and the daemon would stop starting
 - **Automation belongs to the launcher, never to bun/node.** macOS grants Apple Events to the
   *responsible process* and children inherit it, so `launcher.ts` builds
   `~/.local/share/awesome-things/awesome-things.app` (CFBundleName `awesome-things`, ad-hoc signed

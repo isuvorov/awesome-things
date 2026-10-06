@@ -13,6 +13,7 @@ import {
   planInstall,
   planUp,
   portOwner,
+  stableExecPath,
 } from '../src/daemon/ops.js';
 import { daemonLabel, daemonPaths, logDir, serviceId, serviceTarget } from '../src/daemon/paths.js';
 import {
@@ -360,8 +361,39 @@ describe('planUp', () => {
     expect(planUp({ ...state, healthy: false })).toBe('restart');
   });
 
+  test('reinstalls a plist written by an older version — start would run it unchanged forever', () => {
+    expect(planUp({ ...state, running: false, healthy: false, stale: true })).toBe('install');
+    expect(planUp({ ...state, stale: true })).toBe('install');
+  });
+
   test('reinstalls when a flag would otherwise be silently ignored', () => {
     expect(planUp({ ...state, overrides: true })).toBe('install');
+  });
+});
+
+describe('stableExecPath', () => {
+  const links: Record<string, string> = {
+    '/opt/homebrew/bin/node': '/opt/homebrew/Cellar/node/26.10.0_1/bin/node',
+    '/opt/homebrew/Cellar/node/26.10.0_1/bin/node': '/opt/homebrew/Cellar/node/26.10.0_1/bin/node',
+  };
+  const resolve = (path: string) => links[path];
+
+  test('swaps a Cellar path for the symlink that survives brew upgrade', () => {
+    expect(stableExecPath('/opt/homebrew/Cellar/node/26.10.0_1/bin/node', resolve)).toBe(
+      '/opt/homebrew/bin/node',
+    );
+  });
+
+  test('keeps the Cellar path when the symlink points at another version', () => {
+    const other = (path: string) =>
+      path === '/opt/homebrew/bin/node' ? '/opt/homebrew/Cellar/node/27.0.0/bin/node' : path;
+    expect(stableExecPath('/opt/homebrew/Cellar/node/26.10.0_1/bin/node', other)).toBe(
+      '/opt/homebrew/Cellar/node/26.10.0_1/bin/node',
+    );
+  });
+
+  test('leaves every other path alone', () => {
+    expect(stableExecPath('/Users/me/.bun/bin/bun', resolve)).toBe('/Users/me/.bun/bin/bun');
   });
 });
 

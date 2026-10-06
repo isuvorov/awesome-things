@@ -11,3 +11,6 @@ lib-*/
 
 # Scratch builds (TCC probe bundles, compiled binaries)
 .tmp*
+
+# bun build --compile leaves these behind when a build is interrupted (61 MB each)
+*.bun-build

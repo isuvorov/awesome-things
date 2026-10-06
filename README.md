@@ -307,6 +307,12 @@ Notes:
   this app only — never every script on your runtime. Allow it on the first Things3 call; it is
   listed under System Settings → Privacy & Security → Automation. Building it needs the Command
   Line Tools (`xcode-select --install`); `--no-launcher` skips it.
+- **The icon in Login Items needs a real certificate.** macOS takes a background item's name and
+  icon from its code signature, and an ad-hoc signature has none of that — the item shows as a
+  generic "exec". If your keychain has a *Developer ID Application* or *Apple Development*
+  certificate (the latter is free: sign in to Xcode with your Apple ID), `install` signs the
+  launcher with it automatically. Pick one with `AWESOME_THINGS_SIGN_IDENTITY` (SHA-1 or part of the
+  name), or `-` for ad-hoc.
 - Logs are rotated to `.1` on install/restart once they pass 10 MB — launchd rotates nothing itself.
 - macOS only; on other platforms the command refuses instead of pretending.
 

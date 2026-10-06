@@ -85,6 +85,56 @@ export function findAppIcon(start: string = import.meta.dirname): string | undef
   return undefined;
 }
 
+export interface SigningIdentity {
+  /** SHA-1 of the certificate — what codesign takes, unambiguous when names repeat. */
+  hash: string;
+  name: string;
+}
+
+/** `security find-identity -v -p codesigning` → `  1) <SHA-1> "Apple Development: Name (ID)"`. */
+export function parseIdentities(output: string): SigningIdentity[] {
+  const identities: SigningIdentity[] = [];
+  for (const line of output.split('\n')) {
+    const match = line.match(/^\s*\d+\)\s+([0-9A-F]{40})\s+"(.+)"\s*$/);
+    if (match) identities.push({ hash: match[1]!, name: match[2]! });
+  }
+  return identities;
+}
+
+/**
+ * Login Items and the Automation prompt take a background item's name and icon from its code
+ * signature, and an ad-hoc signature has no Team ID — so the item shows up as a generic "exec".
+ * Any Apple-issued identity carries a Team ID; Developer ID is preferred, Apple Development
+ * (free with an Apple ID in Xcode) is enough on the machine that signed it.
+ *
+ * `preferred` is `AWESOME_THINGS_SIGN_IDENTITY`: a SHA-1 or a substring of the name, or `-` to
+ * force ad-hoc.
+ */
+export function pickIdentity(
+  identities: SigningIdentity[],
+  preferred?: string,
+): SigningIdentity | undefined {
+  if (preferred === '-') return undefined;
+  if (preferred) {
+    return identities.find(
+      (identity) => identity.hash === preferred.toUpperCase() || identity.name.includes(preferred),
+    );
+  }
+  return (
+    identities.find((identity) => identity.name.startsWith('Developer ID Application:')) ??
+    identities.find((identity) => identity.name.startsWith('Apple Development:'))
+  );
+}
+
+export async function findSigningIdentity(
+  preferred: string | undefined = process.env.AWESOME_THINGS_SIGN_IDENTITY,
+): Promise<SigningIdentity | undefined> {
+  if (preferred === '-') return undefined;
+  const result = await run('security', ['find-identity', '-v', '-p', 'codesigning']);
+  if (result.code !== 0) return undefined;
+  return pickIdentity(parseIdentities(result.stdout), preferred);
+}
+
 export interface LauncherPaths {
   app: string;
   executable: string;
@@ -155,10 +205,14 @@ ${body}
  * Rebuilding re-signs the bundle with a new code hash, and macOS asks for Automation again —
  * so the stamp covers exactly what ends up in the binary and Info.plist, and nothing else.
  */
-export function launcherFingerprint(icon: string | undefined = findAppIcon()): string {
+export function launcherFingerprint(
+  icon: string | undefined = findAppIcon(),
+  identity?: SigningIdentity,
+): string {
   const hash = createHash('sha256')
     .update(LAUNCHER_SOURCE)
-    .update(buildInfoPlist({ icon: Boolean(icon) }));
+    .update(buildInfoPlist({ icon: Boolean(icon) }))
+    .update(identity?.hash ?? 'adhoc');
   if (icon) hash.update(readFileSync(icon));
   return hash.digest('hex');
 }
@@ -167,17 +221,22 @@ export interface LauncherResult {
   executable?: string;
   /** Freshly compiled and signed — macOS will ask for Automation on the first Things3 call. */
   built: boolean;
+  /** The certificate it is signed with; undefined means ad-hoc. */
+  identity?: SigningIdentity;
   error?: string;
+  /** Built, but not as asked — e.g. the certificate refused and ad-hoc was used instead. */
+  warning?: string;
 }
 
 /** Compile and ad-hoc sign the bundle, unless the one on disk already matches. */
 export async function ensureLauncher(
   paths: LauncherPaths = launcherPaths(),
   icon: string | undefined = findAppIcon(),
+  identity?: SigningIdentity,
 ): Promise<LauncherResult> {
-  const fingerprint = launcherFingerprint(icon);
+  const fingerprint = launcherFingerprint(icon, identity);
   if (existsSync(paths.executable) && readText(paths.stamp) === fingerprint) {
-    return { executable: paths.executable, built: false };
+    return { executable: paths.executable, built: false, identity };
   }
 
   rmSync(paths.app, { recursive: true, force: true });
@@ -199,25 +258,38 @@ export async function ensureLauncher(
     };
   }
 
-  // Ad-hoc, with the bundle id as identifier: Automation remembers this signature, not a path.
-  const sign = await run('codesign', [
-    '--force',
-    '--sign',
-    '-',
-    '--identifier',
-    launcherBundleId,
-    paths.app,
-  ]);
+  // The bundle id is the identifier: Automation remembers this signature, not a path. No
+  // hardened runtime — it would demand the apple-events entitlement before tccd even asks.
+  const codesign = (sign: string) =>
+    run('codesign', [
+      '--force',
+      '--sign',
+      sign,
+      '--timestamp=none',
+      '--identifier',
+      launcherBundleId,
+      paths.app,
+    ]);
+  let signedAs = identity;
+  let warning: string | undefined;
+  let sign = await codesign(identity?.hash ?? '-');
+  if (sign.code !== 0 && identity) {
+    // A locked keychain or a denied key must not cost the daemon — fall back to ad-hoc.
+    warning = `could not sign with "${identity.name}" (${sign.stderr.trim()}), used ad-hoc — Login Items will show a generic "exec" icon`;
+    signedAs = undefined;
+    sign = await codesign('-');
+  }
   if (sign.code !== 0) {
     rmSync(paths.app, { recursive: true, force: true });
     return { built: false, error: `cannot sign the launcher: ${sign.stderr.trim()}` };
   }
 
-  writeFileSync(paths.stamp, fingerprint, 'utf-8');
+  // Stamp what was actually used, so a fallback is retried on the next install.
+  writeFileSync(paths.stamp, launcherFingerprint(icon, signedAs), 'utf-8');
   // Tell LaunchServices about the bundle, so System Settings shows its icon instead of "exec".
   // Best effort: the launcher works without it.
   await run(LSREGISTER, ['-f', paths.app]);
-  return { executable: paths.executable, built: true };
+  return { executable: paths.executable, built: true, identity: signedAs, warning };
 }
 
 function readText(path: string): string | undefined {

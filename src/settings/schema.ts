@@ -32,6 +32,13 @@ export const userConfigSchema = z
       .min(1)
       .optional()
       .describe('Tunnel domain or subdomain (AWESOME_THINGS_DOMAIN)'),
+    signIdentity: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'Certificate for the daemon launcher: SHA-1 or part of its name, "-" for ad-hoc. Default: Developer ID, then Apple Development (AWESOME_THINGS_SIGN_IDENTITY)',
+      ),
     frp: z
       .object({
         serverAddr: z.string().min(1).optional().describe('frps host (FRP_SERVER_ADDR)'),
@@ -117,6 +124,7 @@ export function toEnvironment(config: UserConfig): Array<{ names: string[]; valu
   add(['AWESOME_THINGS_URL_TOKEN'], config.urlToken);
   add(['AWESOME_THINGS_TUNNEL'], config.tunnel);
   add(['AWESOME_THINGS_DOMAIN'], config.domain);
+  add(['AWESOME_THINGS_SIGN_IDENTITY'], config.signIdentity);
   for (const [key, suffix] of Object.entries(FRP_KEYS)) {
     add(
       [`AWESOME_THINGS_FRP_${suffix}`, `FRP_${suffix}`],

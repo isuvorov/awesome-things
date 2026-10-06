@@ -26,7 +26,7 @@ import {
   readPlistJson,
   type ServiceState,
 } from './launchctl.js';
-import { ensureLauncher, launcherBundleId } from './launcher.js';
+import { ensureLauncher, findSigningIdentity, launcherBundleId } from './launcher.js';
 import { daemonPaths } from './paths.js';
 import { buildPlist, collectEnvironment, resolveProgramArguments } from './plist.js';
 
@@ -312,14 +312,23 @@ async function preparePlist(options: InstallOptions): Promise<PreparedPlist> {
   // Automation goes to the responsible process; without the launcher that is bun or node.
   let launcher: string | undefined;
   if (options.launcher !== false) {
-    launcherOnce ??= ensureLauncher();
+    launcherOnce ??= findSigningIdentity().then((identity) =>
+      ensureLauncher(undefined, undefined, identity),
+    );
     const built = await launcherOnce;
     launcher = built.executable;
     if (built.error) {
       warnings.push(
         `No launcher: ${built.error}. The daemon runs as ${process.execPath}, and Automation would have to be granted to that runtime itself.`,
       );
-    } else if (built.built) {
+    }
+    if (built.warning) warnings.push(`Launcher: ${built.warning}.`);
+    if (built.built) {
+      hints.push(
+        built.identity
+          ? `Launcher signed as "${built.identity.name}".`
+          : `Launcher signed ad-hoc — no Team ID, so Login Items shows a generic "exec" icon. An Apple Development or Developer ID certificate in the keychain fixes that.`,
+      );
       hints.push(
         `macOS will ask "${APP_ID} wants to control Things3" on the first Things3 call — allow it. It lives under System Settings → Privacy & Security → Automation.`,
       );

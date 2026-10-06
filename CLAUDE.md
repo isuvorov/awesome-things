@@ -170,6 +170,12 @@ src/
   as `com.isuvorov.awesome-things`) whose C binary *spawns* the runtime (no exec) and forwards
   signals. Rebuild only when `launcherFingerprint()` changes — every rebuild is a new signature and
   a new permission prompt. Nothing may be written into the bundle after `codesign`
+- **The launcher is signed with a Team ID when the keychain has one.** Login Items and the
+  Automation prompt take name and icon from the code signature; ad-hoc has no Team ID and shows a
+  generic "exec" (confirmed on macOS 27, even with `AssociatedBundleIdentifiers` + `LSUIElement`).
+  `findSigningIdentity()` picks Developer ID, then Apple Development; `AWESOME_THINGS_SIGN_IDENTITY`
+  (`signIdentity` in config.json) overrides, `-` forces ad-hoc. Never `--options runtime`: hardened
+  runtime needs the apple-events entitlement before tccd even prompts
 - **The launcher icon** is `assets/AppIcon.icns` (shipped in `files`), regenerated from
   `docs/logo.png` by `bun run build:icon` — the tray with the star, no lettering. It is part of the
   fingerprint, so changing it costs every user one Automation prompt; `lsregister -f` after

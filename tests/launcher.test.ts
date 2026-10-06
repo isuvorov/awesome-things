@@ -8,8 +8,11 @@ import {
   buildInfoPlist,
   ensureLauncher,
   findAppIcon,
+  findSigningIdentity,
   type LauncherPaths,
   launcherPaths,
+  parseIdentities,
+  pickIdentity,
 } from '../src/daemon/launcher.js';
 import { buildPlist, resolveProgramArguments } from '../src/daemon/plist.js';
 import { stripAnsi } from '../src/server/logger.js';
@@ -45,6 +48,43 @@ describe('buildInfoPlist', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('signing identity', () => {
+  const output = `  1) 3D73955683DC27A412232B38E0D6FCFEBD29E3B6 "Apple Development: Igor Suvorov (WE7QH9359Y)"
+  2) AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA "Developer ID Application: Igor Suvorov (7BZ6UJXD8T)"
+     2 valid identities found`;
+  const identities = parseIdentities(output);
+
+  test('parses security find-identity output', () => {
+    expect(identities).toEqual([
+      {
+        hash: '3D73955683DC27A412232B38E0D6FCFEBD29E3B6',
+        name: 'Apple Development: Igor Suvorov (WE7QH9359Y)',
+      },
+      {
+        hash: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        name: 'Developer ID Application: Igor Suvorov (7BZ6UJXD8T)',
+      },
+    ]);
+  });
+
+  test('prefers Developer ID, settles for Apple Development — both carry a Team ID', () => {
+    expect(pickIdentity(identities)?.name).toStartWith('Developer ID Application');
+    expect(pickIdentity(identities.slice(0, 1))?.name).toStartWith('Apple Development');
+  });
+
+  test('an explicit choice wins: hash, part of the name, or - for ad-hoc', () => {
+    expect(pickIdentity(identities, '3d73955683dc27a412232b38e0d6fcfebd29e3b6')?.name).toStartWith(
+      'Apple Development',
+    );
+    expect(pickIdentity(identities, 'Apple Development')?.name).toStartWith('Apple Development');
+    expect(pickIdentity(identities, '-')).toBeUndefined();
+  });
+
+  test('no Apple-issued identity means ad-hoc', () => {
+    expect(pickIdentity([{ hash: 'B'.repeat(40), name: 'My Self-Signed' }])).toBeUndefined();
   });
 });
 
@@ -118,6 +158,17 @@ describe.skipIf(process.platform !== 'darwin')('ensureLauncher (real compile + c
     expect(again.built).toBe(false);
     expect(again.executable).toBe(paths.executable);
   });
+
+  test('with a certificate in the keychain, the signature carries its Team ID', async () => {
+    const identity = await findSigningIdentity(undefined);
+    if (!identity) return; // CI and machines without one: ad-hoc is all there is.
+    const signedPaths = launcherPaths(mkdtempSync(join(dir, 'signed-')), {});
+    const result = await ensureLauncher(signedPaths, undefined, identity);
+    expect(result.warning).toBeUndefined();
+    expect(result.identity?.hash).toBe(identity.hash);
+    const info = spawnSync('codesign', ['-dv', signedPaths.app]).stderr.toString();
+    expect(info).toMatch(/TeamIdentifier=[A-Z0-9]{10}/);
+  }, 30_000);
 
   test('passes the child exit code through — KeepAlive depends on it', () => {
     const result = spawnSync(paths.executable, ['/bin/sh', '-c', 'exit 7']);

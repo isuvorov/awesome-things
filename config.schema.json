@@ -44,6 +44,11 @@
       "type": "string",
       "minLength": 1
     },
+    "signIdentity": {
+      "description": "Certificate for the daemon launcher: SHA-1 or part of its name, \"-\" for ad-hoc. Default: Developer ID, then Apple Development (AWESOME_THINGS_SIGN_IDENTITY)",
+      "type": "string",
+      "minLength": 1
+    },
     "frp": {
       "description": "frp tunnel settings",
       "type": "object",

@@ -285,6 +285,18 @@ The design decisions worth knowing:
 - **`ProgramArguments` is `[launcher, process.execPath, realpath(argv[1]), 'server']`.** Never
   the bin itself: after `npm link` it is a symlink, and its exec bit and shebang cannot be trusted —
   launchd would fail with a bare "Operation not permitted".
+- **Sign with a Team ID whenever possible.** Background Task Management and the Automation prompt
+  take a background item's name and icon from its code signature. An ad-hoc signature has no Team
+  ID, so Login Items shows a generic "exec" — on macOS 27 even with an icon, `LSUIElement` and
+  `AssociatedBundleIdentifiers` ([dotsync#11](https://github.com/pungoyal/dotsync/issues/11)).
+  `findSigningIdentity()` parses `security find-identity -v -p codesigning` and picks
+  "Developer ID Application", then "Apple Development" (free with an Apple ID in Xcode — enough on
+  the machine that signs). `AWESOME_THINGS_SIGN_IDENTITY` / `signIdentity` takes a SHA-1 or part of
+  a name, `-` forces ad-hoc. A refused key falls back to ad-hoc with a warning, and the stamp records
+  what was actually used so the next install retries. The identity is part of the fingerprint:
+  switching certificates rebuilds the bundle and costs one Automation prompt. No hardened runtime
+  (`--options runtime`): it would require the `com.apple.security.automation.apple-events`
+  entitlement before tccd shows anything. `--timestamp=none` keeps signing offline.
 - **No Homebrew Cellar paths in the plist.** `process.execPath` under Homebrew is
   `/opt/homebrew/Cellar/node/<version>/bin/node`, which `brew upgrade` deletes. `stableExecPath()`
   uses `<prefix>/bin/<name>` instead whenever that symlink resolves to the same file.

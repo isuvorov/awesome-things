@@ -1,3 +1,22 @@
+# [1.7.0](https://github.com/isuvorov/awesome-things/compare/v1.6.2...v1.7.0) (2026-10-06)
+
+
+### Bug Fixes
+
+* **daemon:** attribute the launchd job to the launcher app so Login Items shows its icon ([2807c63](https://github.com/isuvorov/awesome-things/commit/2807c636484514385c70c6af8a96e8e66c5298b6))
+* **daemon:** reinstall a stale plist on up and never pin a Homebrew Cellar runtime path ([d5210f1](https://github.com/isuvorov/awesome-things/commit/d5210f1382b58c24eaf944a69040d936758d1301))
+* **web:** name the pages awesome-things instead of Things3 ([3694c0a](https://github.com/isuvorov/awesome-things/commit/3694c0af0572df2bc85b5545f04c15ce99cf1e52))
+
+
+### Features
+
+* **config:** read settings from ~/.config/awesome-things/config.json with a published JSON schema ([6331b4a](https://github.com/isuvorov/awesome-things/commit/6331b4a4649c8e9327522809f543fcd69b22e24f))
+* **config:** treat _ and // prefixed keys as comments and keep the real config out of tests ([7a6553e](https://github.com/isuvorov/awesome-things/commit/7a6553eb103248a55da0c42b3736ff3f17355512))
+* **daemon:** give the awesome-things.app launcher the project icon ([b57846c](https://github.com/isuvorov/awesome-things/commit/b57846c1b2d7d56616a051804ff2eef2a154f22e))
+* **daemon:** run through an awesome-things.app launcher so Automation is granted to it, not to bun or node ([71af026](https://github.com/isuvorov/awesome-things/commit/71af026c42164555db1a88d625d6e4af7d6cff95))
+* **daemon:** sign the launcher with a keychain certificate so Login Items shows its name and icon ([446cee2](https://github.com/isuvorov/awesome-things/commit/446cee2665590acc050076e797a102ca24ca78a1))
+* **server:** log lifecycle events instead of the startup banner when there is no terminal ([b1c13a8](https://github.com/isuvorov/awesome-things/commit/b1c13a83ea7abef41ceeb7ab88a8625611b807b7))
+
 ## [1.6.2](https://github.com/isuvorov/awesome-things/compare/v1.6.1...v1.6.2) (2026-10-06)
 
 

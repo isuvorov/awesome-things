@@ -1,3 +1,10 @@
+## [1.6.1](https://github.com/isuvorov/awesome-things/compare/v1.6.0...v1.6.1) (2026-10-06)
+
+
+### Bug Fixes
+
+* **daemon:** tell the running daemon from a hand-started server on install and reload it ([f86486c](https://github.com/isuvorov/awesome-things/commit/f86486c1014c1498ba6c662ecc08bd7dda17a5bd))
+
 # [1.6.0](https://github.com/isuvorov/awesome-things/compare/v1.5.0...v1.6.0) (2026-10-06)
 
 

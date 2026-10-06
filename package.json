@@ -15,6 +15,7 @@
     "build:tsdown:release": "tsdown --out-dir lib",
     "build": "               bun run build:schema && bun run build:tsdown:release",
     "build:schema": "        bun run scripts/config-schema.ts",
+    "build:icon": "          bun run scripts/app-icon.ts",
     "dev": "                 tsdown --watch",
     "start": "               bun run src/mcp.ts",
     "server": "              bun run src/server.ts",
@@ -60,6 +61,7 @@
   "files": [
     "lib",
     "config.schema.json",
+    "assets",
     "LICENSE",
     "README.md"
   ],

@@ -123,6 +123,7 @@ ANSI-free lines. Client disconnects (`isClientAbort()`) are logged as expected n
 # Build
 bun run build              # Build for production (schema + tsdown -> lib/)
 bun run build:schema       # Regenerate config.schema.json from the zod schema
+bun run build:icon         # Regenerate assets/AppIcon.icns from docs/logo.png
 bun run dev                # Watch mode (tsdown)
 
 # Run
@@ -302,6 +303,13 @@ The design decisions worth knowing:
   hashes only the C source and Info.plist (with a fixed version), so an npm release never
   triggers a rebuild: every rebuild is a new signature and a new prompt. No compiler → a warning
   and the old behaviour; `--no-launcher` opts out. `status` shows the identity as `Runs as:`.
+  The bundle carries `assets/AppIcon.icns` (`CFBundleIconFile`), copied in *before* signing so the
+  seal covers it; `findAppIcon()` searches upwards because `src/daemon/` and the flattened `lib/`
+  sit at different depths. After signing, `lsregister -f` registers the bundle with LaunchServices
+  so System Settings → General → Login Items shows the icon instead of a generic "exec". The icon
+  is part of `launcherFingerprint()`: replacing it rebuilds the bundle and costs one prompt.
+  `bun run build:icon` (`scripts/app-icon.ts`) regenerates it from `docs/logo.png`, cropped to the
+  tray with the star — the lettering is unreadable at 32px.
 - **`install` refuses to start over a hand-started server — but not over itself.** "This app
   answers `/health`" is the daemon just as often as a manual server, so `portOwner()` compares the
   pid `/health` reports with the pid from `launchctl print`. A manual server gets the plist written,

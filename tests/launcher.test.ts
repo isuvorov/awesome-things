@@ -1,12 +1,13 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { formatIdentity } from '../src/daemon/format.js';
 import {
   buildInfoPlist,
   ensureLauncher,
+  findAppIcon,
   type LauncherPaths,
   launcherPaths,
 } from '../src/daemon/launcher.js';
@@ -20,6 +21,20 @@ describe('buildInfoPlist', () => {
     expect(xml).toContain('<key>CFBundleName</key>\n  <string>awesome-things</string>');
     expect(xml).toContain('<string>com.isuvorov.awesome-things</string>');
     expect(xml).toContain('<key>NSAppleEventsUsageDescription</key>');
+  });
+
+  test('points at the icon only when the bundle carries one', () => {
+    expect(xml).not.toContain('CFBundleIconFile');
+    expect(buildInfoPlist({ icon: true })).toContain(
+      '<key>CFBundleIconFile</key>\n  <string>AppIcon</string>',
+    );
+  });
+
+  test('finds the shipped icon from src/ and from a flattened lib/', () => {
+    expect(findAppIcon(join(import.meta.dirname, '..', 'src', 'daemon'))).toEndWith(
+      'assets/AppIcon.icns',
+    );
+    expect(findAppIcon(join(import.meta.dirname, '..', 'lib'))).toEndWith('assets/AppIcon.icns');
   });
 
   test('is a valid plist', () => {
@@ -76,6 +91,11 @@ describe.skipIf(process.platform !== 'darwin')('ensureLauncher (real compile + c
     expect(verify.status).toBe(0);
     const info = spawnSync('codesign', ['-dv', paths.app]).stderr.toString();
     expect(info).toContain('Identifier=com.isuvorov.awesome-things');
+  });
+
+  test('carries the icon inside the signed bundle', () => {
+    expect(existsSync(join(paths.app, 'Contents', 'Resources', 'AppIcon.icns'))).toBe(true);
+    expect(readFileSync(paths.infoPlist, 'utf-8')).toContain('CFBundleIconFile');
   });
 
   test('is not rebuilt when nothing changed — a rebuild costs a new permission prompt', async () => {

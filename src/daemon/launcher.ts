@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { appName } from '../config.js';
 import { run } from './launchctl.js';
 import { daemonLabel } from './paths.js';
@@ -66,6 +66,25 @@ int main(int argc, char *argv[]) {
 /** The bundle id is the identity macOS shows and remembers in Privacy & Security → Automation. */
 export const launcherBundleId = daemonLabel;
 
+const LSREGISTER =
+  '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister';
+
+/**
+ * `assets/AppIcon.icns` in the package. Searched upwards: the code runs from `src/daemon/` in the
+ * repo and from a flattened `lib/` once built, so no fixed `../..` fits both.
+ */
+export function findAppIcon(start: string = import.meta.dirname): string | undefined {
+  let dir = start;
+  for (let i = 0; i < 6; i++) {
+    const icon = join(dir, 'assets', 'AppIcon.icns');
+    if (existsSync(icon)) return icon;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return undefined;
+}
+
 export interface LauncherPaths {
   app: string;
   executable: string;
@@ -95,10 +114,13 @@ export function buildInfoPlist({
   name = appName,
   // Fixed on purpose: an npm release must not change the signature and cost a permission prompt.
   version = '1',
+  icon = false,
 }: {
   bundleId?: string;
   name?: string;
   version?: string;
+  /** Contents/Resources/AppIcon.icns is in the bundle. */
+  icon?: boolean;
 } = {}): string {
   const entries: Array<[string, string]> = [
     ['CFBundleIdentifier', `<string>${escapeXml(bundleId)}</string>`],
@@ -110,6 +132,9 @@ export function buildInfoPlist({
     ['CFBundleShortVersionString', `<string>${escapeXml(version)}</string>`],
     // No Dock icon, no menu bar — it is a process wrapper, not an app anyone opens.
     ['LSBackgroundOnly', '<true/>'],
+    ...(icon
+      ? ([['CFBundleIconFile', '<string>AppIcon</string>']] as Array<[string, string]>)
+      : []),
     [
       'NSAppleEventsUsageDescription',
       '<string>awesome-things reads and edits your Things3 to-dos for the HTTP API and MCP server.</string>',
@@ -130,8 +155,12 @@ ${body}
  * Rebuilding re-signs the bundle with a new code hash, and macOS asks for Automation again —
  * so the stamp covers exactly what ends up in the binary and Info.plist, and nothing else.
  */
-export function launcherFingerprint(): string {
-  return createHash('sha256').update(LAUNCHER_SOURCE).update(buildInfoPlist()).digest('hex');
+export function launcherFingerprint(icon: string | undefined = findAppIcon()): string {
+  const hash = createHash('sha256')
+    .update(LAUNCHER_SOURCE)
+    .update(buildInfoPlist({ icon: Boolean(icon) }));
+  if (icon) hash.update(readFileSync(icon));
+  return hash.digest('hex');
 }
 
 export interface LauncherResult {
@@ -144,15 +173,21 @@ export interface LauncherResult {
 /** Compile and ad-hoc sign the bundle, unless the one on disk already matches. */
 export async function ensureLauncher(
   paths: LauncherPaths = launcherPaths(),
+  icon: string | undefined = findAppIcon(),
 ): Promise<LauncherResult> {
-  const fingerprint = launcherFingerprint();
+  const fingerprint = launcherFingerprint(icon);
   if (existsSync(paths.executable) && readText(paths.stamp) === fingerprint) {
     return { executable: paths.executable, built: false };
   }
 
   rmSync(paths.app, { recursive: true, force: true });
   mkdirSync(join(paths.app, 'Contents', 'MacOS'), { recursive: true });
-  writeFileSync(paths.infoPlist, buildInfoPlist(), 'utf-8');
+  writeFileSync(paths.infoPlist, buildInfoPlist({ icon: Boolean(icon) }), 'utf-8');
+  if (icon) {
+    // Before codesign: the seal covers Resources, and a file added later breaks it.
+    mkdirSync(join(paths.app, 'Contents', 'Resources'), { recursive: true });
+    copyFileSync(icon, join(paths.app, 'Contents', 'Resources', 'AppIcon.icns'));
+  }
   writeFileSync(paths.source, LAUNCHER_SOURCE, 'utf-8');
 
   const cc = await run('xcrun', ['cc', '-O2', '-o', paths.executable, paths.source]);
@@ -179,6 +214,9 @@ export async function ensureLauncher(
   }
 
   writeFileSync(paths.stamp, fingerprint, 'utf-8');
+  // Tell LaunchServices about the bundle, so System Settings shows its icon instead of "exec".
+  // Best effort: the launcher works without it.
+  await run(LSREGISTER, ['-f', paths.app]);
   return { executable: paths.executable, built: true };
 }
 

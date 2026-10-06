@@ -14,6 +14,7 @@ import { dirname } from 'node:path';
 import { defaultPort } from '../config.js';
 import { fetchInstanceInfo } from '../server/attach.js';
 import { APP_ID, probePort } from '../server/port.js';
+import { loadUserConfig } from '../settings/load.js';
 import { detectSource } from '../tools/info.js';
 import { generateToken } from '../utils/auth.js';
 import {
@@ -269,9 +270,21 @@ export async function installDaemon(options: InstallOptions = {}): Promise<Daemo
 
   const port = options.port ?? defaultPort;
   const stored = await readInstalledPlist(paths.plist);
-  const token = options.noToken
+
+  // Whatever came from config.json stays out of the plist: the daemon rereads the file on every
+  // start, so editing it plus "daemon restart" is enough. Only the shell and flags get frozen.
+  const fromConfig = new Set(loadUserConfig().keys);
+  const shellEnv = Object.fromEntries(
+    Object.entries(process.env).filter(([key]) => !fromConfig.has(key)),
+  );
+  const tokenInConfig = fromConfig.has('AWESOME_THINGS_TOKEN');
+  const pinnedToken = options.noToken
     ? undefined
-    : options.token || process.env.AWESOME_THINGS_TOKEN || stored.token || generateToken();
+    : options.token ||
+      shellEnv.AWESOME_THINGS_TOKEN ||
+      (tokenInConfig ? undefined : stored.token || generateToken());
+  const token = options.noToken ? undefined : pinnedToken || process.env.AWESOME_THINGS_TOKEN;
+  const pinnedPort = options.port ?? (shellEnv.AWESOME_THINGS_PORT ? port : undefined);
 
   mkdirSync(paths.logDir, { recursive: true });
   mkdirSync(dirname(paths.plist), { recursive: true });
@@ -290,8 +303,9 @@ export async function installDaemon(options: InstallOptions = {}): Promise<Daemo
     environment: collectEnvironment({
       execPath: process.execPath,
       home: homedir(),
-      port,
-      token,
+      env: shellEnv,
+      port: pinnedPort,
+      token: pinnedToken,
       noToken: options.noToken,
       tunnel: options.tunnel,
       domain: options.domain,

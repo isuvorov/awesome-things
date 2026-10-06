@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import './settings/autoload.js';
 import {
   cancelTodo,
   completeTodo,

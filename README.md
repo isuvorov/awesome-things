@@ -341,6 +341,31 @@ FRP_SERVER_ADDR=frp.example.com things server --tunnel=frp
 FRP_SERVER_ADDR=frp.example.com things server --tunnel=frp --domain myapp
 ```
 
+### Config file
+
+Settings live in `~/.config/awesome-things/config.json` (or `$XDG_CONFIG_HOME/awesome-things/`,
+or any path in `AWESOME_THINGS_CONFIG`). Every key mirrors an environment variable below:
+
+```json
+{
+  "$schema": "https://unpkg.com/awesome-things/config.schema.json",
+  "port": 32123,
+  "token": "your-bearer-token",
+  "urlToken": "things-url-scheme-token",
+  "tunnel": "frp",
+  "domain": "things.example.com",
+  "frp": { "serverAddr": "frp.example.com", "serverPort": 7000, "token": "frp-token" },
+  "ngrok": { "authtoken": "ngrok-token" }
+}
+```
+
+- **Precedence:** CLI flag > environment variable > `config.json` > default.
+- `$schema` gives your editor autocompletion and validation; the schema ships in the npm package.
+- An invalid file stops the process with the exact field at fault — a server never starts with
+  half a config. Keep it `chmod 600`: it holds tokens, and a looser mode prints a warning.
+- The daemon rereads the file on every start, so after editing it `things daemon restart` is
+  enough. Values that come from the file are never frozen into the launchd plist.
+
 ### Environment variables
 
 | Variable | Purpose | Default |

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import './settings/autoload.js';
 import yargs, { type Argv } from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { getAreaTodos } from './api/area-ops.js';

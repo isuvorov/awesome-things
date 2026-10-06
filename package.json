@@ -13,7 +13,8 @@
   "scripts": {
     "build:tsdown": "        tsdown",
     "build:tsdown:release": "tsdown --out-dir lib",
-    "build": "               bun run build:tsdown:release",
+    "build": "               bun run build:schema && bun run build:tsdown:release",
+    "build:schema": "        bun run scripts/config-schema.ts",
     "dev": "                 tsdown --watch",
     "start": "               bun run src/mcp.ts",
     "server": "              bun run src/server.ts",
@@ -58,6 +59,7 @@
   "//": "///////////========================/////////========================/////////========================/////////",
   "files": [
     "lib",
+    "config.schema.json",
     "LICENSE",
     "README.md"
   ],

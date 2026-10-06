@@ -70,7 +70,8 @@ about Things3 behaviour. Use scratch objects (`__mvp-check-*`) and delete them a
 
 ## Main Commands
 ```bash
-bun run build       # Build the project (tsdown -> lib/)
+bun run build       # Build the project (schema + tsdown -> lib/)
+bun run build:schema  # Regenerate config.schema.json from src/settings/schema.ts
 bun run test        # Run lint + types + unit tests + size-limit
 bun run test:lint   # Run only lints (biome)
 bun run test:types  # Check TypeScript types (tsc --noEmit)
@@ -119,6 +120,10 @@ src/
 │   ├── logger.ts         # Request box, colors, logError
 │   ├── mcp-http.ts       # MCP-over-HTTP: stateless transport per request
 │   └── port.ts           # Port probing
+├── settings/             # ~/.config/awesome-things/config.json → process.env
+│   ├── schema.ts         # zod schema, env mapping, JSON Schema generator
+│   ├── load.ts           # configPath, parse, applyUserConfig (env beats file)
+│   └── autoload.ts       # Side-effect import, first line of cli/server/mcp
 ├── tools/                # Output helpers (formatters, parsers, info)
 └── utils/                # applescript, auth, create-server, mcp-server, openapi, tunnel
 ```
@@ -166,6 +171,19 @@ src/
   literal `true`
 - `daemon status` distinguishes *launchd runs it* (`launchctl print`) from *it answers*
   (`probePort` → `/health`); both are needed, either one alone lies
+
+## Config File Rules
+- **`~/.config/awesome-things/config.json` is just another source of env vars.** `applyUserConfig()`
+  copies it into `process.env`, never over a variable already set: flag > env > file > default.
+  New settings go into `src/settings/schema.ts` *and* `toEnvironment()`; code keeps reading env
+- `import './settings/autoload.js'` must stay the **first import** of `cli.ts`, `server.ts`,
+  `mcp.ts` — `config.ts` computes `defaultPort` at import time. Never import it from `api.ts`:
+  a library must not read `~/.config` or exit on a bad file
+- `config.schema.json` (repo root, shipped to npm, served by unpkg) is generated:
+  `bun run build:schema` after any schema change — a test fails if it is stale
+- `daemon install` keeps keys that came from the file **out of the plist**, so editing the file
+  plus `daemon restart` is enough; only flags and shell env get frozen
+- `test:unit` globs `tests/[!s]*.test.ts` — a test file starting with `s` silently never runs
 
 ## Key Architecture
 - **21 tools** for managing Things3: todos, projects, tags, areas, move/remove/delete

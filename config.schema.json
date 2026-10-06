@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "JSON Schema for editor autocompletion",
+      "type": "string"
+    },
+    "port": {
+      "description": "HTTP port (AWESOME_THINGS_PORT). Default 32123",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535
+    },
+    "token": {
+      "description": "Bearer token for the HTTP API and MCP (AWESOME_THINGS_TOKEN)",
+      "type": "string",
+      "minLength": 1
+    },
+    "urlToken": {
+      "description": "Things URL-scheme token for evening, reminders and checklists (AWESOME_THINGS_URL_TOKEN)",
+      "type": "string",
+      "minLength": 1
+    },
+    "tunnel": {
+      "description": "Public tunnel to open, or false for none (AWESOME_THINGS_TUNNEL)",
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "frp",
+            "ngrok",
+            "localtunnel"
+          ]
+        },
+        {
+          "type": "boolean",
+          "const": false
+        }
+      ]
+    },
+    "domain": {
+      "description": "Tunnel domain or subdomain (AWESOME_THINGS_DOMAIN)",
+      "type": "string",
+      "minLength": 1
+    },
+    "frp": {
+      "description": "frp tunnel settings",
+      "type": "object",
+      "properties": {
+        "serverAddr": {
+          "description": "frps host (FRP_SERVER_ADDR)",
+          "type": "string",
+          "minLength": 1
+        },
+        "serverPort": {
+          "description": "frps port (FRP_SERVER_PORT). Default 7000",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "token": {
+          "description": "frps auth token (FRP_TOKEN)",
+          "type": "string",
+          "minLength": 1
+        },
+        "protocol": {
+          "description": "Scheme of the public URL (FRP_PROTOCOL). Default https",
+          "type": "string",
+          "enum": [
+            "http",
+            "https"
+          ]
+        },
+        "remotePort": {
+          "description": "Remote port on frps (FRP_REMOTE_PORT)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "subdomain": {
+          "description": "frp subdomain (FRP_SUBDOMAIN)",
+          "type": "string",
+          "minLength": 1
+        },
+        "proxyName": {
+          "description": "Proxy name in frpc (FRP_PROXY_NAME). Default things",
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "ngrok": {
+      "description": "ngrok tunnel settings",
+      "type": "object",
+      "properties": {
+        "authtoken": {
+          "description": "ngrok auth token (NGROK_AUTHTOKEN)",
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$id": "https://unpkg.com/awesome-things/config.schema.json",
+  "title": "awesome-things config"
+}

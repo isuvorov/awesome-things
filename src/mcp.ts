@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import './settings/autoload.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { formatError } from './server/errors.js';
 import { installProcessGuards } from './server/guards.js';

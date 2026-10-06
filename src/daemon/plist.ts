@@ -11,6 +11,9 @@ export const FORWARDED_ENV_KEYS = [
   'AWESOME_THINGS_TUNNEL',
   'AWESOME_THINGS_DOMAIN',
   'NGROK_AUTHTOKEN',
+  // Where the daemon finds config.json when it is not in ~/.config.
+  'AWESOME_THINGS_CONFIG',
+  'XDG_CONFIG_HOME',
   'NO_COLOR',
   // The log paths are frozen into StandardOutPath, but the job itself may want them too.
   'AWESOME_THINGS_LOG_DIR',

@@ -26,6 +26,7 @@ import {
   readPlistJson,
   type ServiceState,
 } from './launchctl.js';
+import { ensureLauncher } from './launcher.js';
 import { daemonPaths } from './paths.js';
 import { buildPlist, collectEnvironment, resolveProgramArguments } from './plist.js';
 
@@ -83,6 +84,8 @@ export interface InstallOptions {
   color?: boolean;
   /** Install the plist but leave the job stopped. */
   start?: boolean;
+  /** Wrap the runtime in the awesome-things.app launcher (default) — see launcher.ts. */
+  launcher?: boolean;
 }
 
 /** Any of these means the plist has to be rewritten — `start` would silently ignore them. */
@@ -90,6 +93,7 @@ export function hasConfigOverrides(options: InstallOptions): boolean {
   return (
     options.port !== undefined ||
     options.token !== undefined ||
+    options.launcher === false ||
     options.noToken === true ||
     options.tunnel !== undefined ||
     options.domain !== undefined ||
@@ -291,10 +295,27 @@ export async function installDaemon(options: InstallOptions = {}): Promise<Daemo
   rotateIfLarge(paths.outLog);
   rotateIfLarge(paths.errLog);
 
+  // Automation goes to the responsible process; without the launcher that is bun or node.
+  let launcher: string | undefined;
+  if (options.launcher !== false) {
+    const built = await ensureLauncher();
+    launcher = built.executable;
+    if (built.error) {
+      warnings.push(
+        `No launcher: ${built.error}. The daemon runs as ${process.execPath}, and Automation would have to be granted to that runtime itself.`,
+      );
+    } else if (built.built) {
+      hints.push(
+        `macOS will ask "${APP_ID} wants to control Things3" on the first Things3 call — allow it. It lives under System Settings → Privacy & Security → Automation.`,
+      );
+    }
+  }
+
   const programArguments = resolveProgramArguments({
     execPath: process.execPath,
     bin: realBin,
     noToken: options.noToken,
+    launcher,
   });
 
   const plist = buildPlist({

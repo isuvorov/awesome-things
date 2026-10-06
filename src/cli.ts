@@ -87,6 +87,12 @@ const daemonConfigOptions = <T>(y: Argv<T>) =>
       type: 'boolean',
       default: true,
       describe: 'Keep ANSI colour in the log files (--no-color for greppable plain text)',
+    })
+    .option('launcher', {
+      type: 'boolean',
+      default: true,
+      describe:
+        'Run through the awesome-things.app launcher, so Automation is granted to it and not to bun/node (--no-launcher to skip)',
     });
 
 /** Registered twice: as `logs` and as `daemon logs` — the short one is what gets typed. */
@@ -133,6 +139,7 @@ function daemonConfig(argv: Record<string, unknown>): InstallOptions {
     tunnel: argv.tunnel as string | undefined,
     domain: argv.domain as string | undefined,
     color: argv.color as boolean | undefined,
+    launcher: argv.launcher as boolean | undefined,
   };
 }
 

@@ -98,14 +98,22 @@ export interface ProgramInput {
   /** The CLI entry point with symlinks resolved. */
   bin: string;
   noToken?: boolean;
+  /** The app-bundle launcher from launcher.ts — the identity Automation is granted to. */
+  launcher?: string;
 }
 
 /**
  * Always `<runtime> <script> server`: the bin may be a symlink from `npm link` or lose
  * its exec bit, and launchd would then fail with a bare "Operation not permitted".
  */
-export function resolveProgramArguments({ execPath, bin, noToken }: ProgramInput): string[] {
-  const args = [execPath, bin, 'server'];
+export function resolveProgramArguments({
+  execPath,
+  bin,
+  noToken,
+  launcher,
+}: ProgramInput): string[] {
+  // The launcher goes first so that it, not the runtime, is what macOS asks Automation for.
+  const args = [...(launcher ? [launcher] : []), execPath, bin, 'server'];
   if (noToken) args.push('--no-token');
   return args;
 }

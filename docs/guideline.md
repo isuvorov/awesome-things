@@ -50,6 +50,7 @@ src/
 ├── daemon/               # Background launchd agent (macOS)
 │   ├── paths.ts          # daemonLabel, daemonPaths, logDir, serviceTarget, serviceId
 │   ├── plist.ts          # buildPlist, collectEnvironment, buildPath, resolveProgramArguments
+│   ├── launcher.ts       # LAUNCHER_SOURCE, buildInfoPlist, launcherFingerprint, ensureLauncher
 │   ├── launchctl.ts      # run, bootstrapService, bootoutService, kickstartService, parseLaunchctlPrint
 │   ├── ops.ts            # upDaemon/planUp, installDaemon, uninstallDaemon, start/stop/restartDaemon, daemonStatus
 │   ├── logs.ts           # runLogs, logFiles, buildTailArgs
@@ -81,6 +82,7 @@ tests/
 ├── applescript.test.ts   # Unit tests for pure AppleScript utility functions
 ├── auth.test.ts          # Token / auth helpers
 ├── user-config.test.ts   # config path, zod validation, env precedence, schema freshness
+├── launcher.test.ts      # Info.plist, real compile + codesign, exit codes, signal forwarding
 ├── daemon.test.ts        # plist/env builders, launchctl parsing, log args, daemon report
 ├── errors.test.ts        # Error formatting, process guards, logError
 ├── formatters.test.ts    # CLI formatters
@@ -278,9 +280,24 @@ The design decisions worth knowing:
 - **`KeepAlive` is `{ SuccessfulExit: false }`, not `true`.** `startServer()` exits **0** when it
   finds the port already served by its own twin; an unconditional `KeepAlive` would respawn it
   every 10 seconds forever. A crash still restarts, throttled by `ThrottleInterval: 10`.
-- **`ProgramArguments` is `[process.execPath, realpath(argv[1]), 'server']`.** Never the bin
-  itself: after `npm link` it is a symlink, and its exec bit and shebang cannot be trusted —
+- **`ProgramArguments` is `[launcher, process.execPath, realpath(argv[1]), 'server']`.** Never
+  the bin itself: after `npm link` it is a symlink, and its exec bit and shebang cannot be trusted —
   launchd would fail with a bare "Operation not permitted".
+- **The launcher is the Automation identity (`launcher.ts`).** macOS grants Apple Events to the
+  *responsible process*, and children inherit it: `osascript` from a terminal acts as the terminal,
+  under launchd it acts as the job binary — `bun` or `node`. Granting those would let every script
+  on the runtime drive Things3. `install` therefore builds
+  `~/.local/share/awesome-things/awesome-things.app`: an `Info.plist` with
+  `CFBundleName = awesome-things`, `CFBundleIdentifier = com.isuvorov.awesome-things`,
+  `LSBackgroundOnly` and `NSAppleEventsUsageDescription`, plus a ~40-line C program compiled with
+  `xcrun cc` that `posix_spawn`s the runtime, forwards SIGTERM/SIGINT/SIGHUP and exits with the
+  child's code (128 + signal on a kill, so KeepAlive behaves as before). The bundle is ad-hoc signed
+  with `codesign -s - --identifier com.isuvorov.awesome-things`, and macOS asks
+  "awesome-things wants to control Things3". The source and the `launcher.sha256` stamp sit
+  *next to* the bundle — writing into it after signing breaks the seal. `launcherFingerprint()`
+  hashes only the C source and Info.plist (with a fixed version), so an npm release never
+  triggers a rebuild: every rebuild is a new signature and a new prompt. No compiler → a warning
+  and the old behaviour; `--no-launcher` opts out. `status` shows the identity as `Runs as:`.
 - **`install` refuses to start over a hand-started server — but not over itself.** "This app
   answers `/health`" is the daemon just as often as a manual server, so `portOwner()` compares the
   pid `/health` reports with the pid from `launchctl print`. A manual server gets the plist written,

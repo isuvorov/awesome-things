@@ -100,6 +100,7 @@ src/
 ├── daemon/               # launchd background agent (macOS)
 │   ├── paths.ts          # Label, plist path, log paths, launchctl service id
 │   ├── plist.ts          # Pure plist/env/argv builders
+│   ├── launcher.ts       # awesome-things.app — the identity Automation is granted to
 │   ├── launchctl.ts      # bootstrap / bootout / kickstart / print + output parsing
 │   ├── ops.ts            # up/planUp, install, uninstall, start, stop, restart, status
 │   ├── logs.ts           # tail / follow / clear the log files
@@ -155,8 +156,14 @@ src/
   `FRP_*` / `NGROK_AUTHTOKEN` vars. Changing a var means re-running `daemon install`
 - `KeepAlive.SuccessfulExit = false` is deliberate: `startServer()` exits **0** when the port is
   already held by its own twin, and a plain `KeepAlive` would turn that into a respawn loop
-- `ProgramArguments` is always `[process.execPath, realpath(argv[1]), 'server']` — never the bare
-  bin, whose shebang and exec bit cannot be relied on after `npm link`
+- `ProgramArguments` is `[launcher, process.execPath, realpath(argv[1]), 'server']` — never the
+  bare bin, whose shebang and exec bit cannot be relied on after `npm link`
+- **Automation belongs to the launcher, never to bun/node.** macOS grants Apple Events to the
+  *responsible process* and children inherit it, so `launcher.ts` builds
+  `~/.local/share/awesome-things/awesome-things.app` (CFBundleName `awesome-things`, ad-hoc signed
+  as `com.isuvorov.awesome-things`) whose C binary *spawns* the runtime (no exec) and forwards
+  signals. Rebuild only when `launcherFingerprint()` changes — every rebuild is a new signature and
+  a new permission prompt. Nothing may be written into the bundle after `codesign`
 - **Log paths follow the rest of the machine**, not macOS: `~/.local/share/<app>/logs/` like
   `openhealth` and `vibe-manager`, overridable with `AWESOME_THINGS_LOG_DIR` or `XDG_DATA_HOME`.
   Never move them back to `~/Library/Logs` — one place everywhere beats a per-OS convention

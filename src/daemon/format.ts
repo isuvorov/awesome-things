@@ -33,6 +33,18 @@ const HEADLINES: Record<DaemonActionName, string> = {
   up: 'daemon up',
 };
 
+/**
+ * Whose name macOS sees for Automation: the launcher bundle, or — without it — the runtime
+ * itself, which is worth flagging, because granting it covers every script on that runtime.
+ */
+export function formatIdentity(program: string[]): string {
+  const first = program[0] ?? '';
+  const bundle = first.match(/([^/]+\.app)\/Contents\/MacOS\//);
+  if (bundle)
+    return `${green(bundle[1]!)} ${dim(`(${tildify(first.slice(0, first.indexOf('/Contents/')))})`)}`;
+  return `${yellow(tildify(first))} ${dim('— no launcher, Automation is granted to the runtime')}`;
+}
+
 /** One line that answers "is it actually working?" — the only line most runs need. */
 export function formatState(result: DaemonResult): string {
   if (!result.installed) {
@@ -97,6 +109,7 @@ export function formatDaemonResult(result: DaemonResult): string {
     if (result.token) row('Token:', yellow(result.token));
     row('Label:', dim(result.label));
     row('Plist:', dim(tildify(result.plist)));
+    if (result.program?.length) row('Runs as:', formatIdentity(result.program));
   }
   row('Logs:', `${dim(tildify(result.logs.out))} ${dim(`(${formatBytes(result.logs.outSize)})`)}`);
   lines.push(

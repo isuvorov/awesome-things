@@ -301,9 +301,12 @@ Notes:
 - launchd starts a job with an almost empty environment. `install` bakes in `PATH`, `HOME` and
   every `AWESOME_THINGS_*` / `FRP_*` / `NGROK_AUTHTOKEN` variable from the shell you ran it in —
   change one of them and run `things daemon install` again.
-- The first background run may need **Automation** access to Things3. macOS asks in a GUI dialog;
-  if it never appears, run any `things list` in Terminal once to grant it, then
-  `things daemon restart`.
+- **Automation is granted to `awesome-things`, not to bun or node.** The daemon runs through a
+  tiny launcher app (`~/.local/share/awesome-things/awesome-things.app`, built and signed on
+  install), so macOS asks "awesome-things wants to control Things3" and the permission covers
+  this app only — never every script on your runtime. Allow it on the first Things3 call; it is
+  listed under System Settings → Privacy & Security → Automation. Building it needs the Command
+  Line Tools (`xcode-select --install`); `--no-launcher` skips it.
 - Logs are rotated to `.1` on install/restart once they pass 10 MB — launchd rotates nothing itself.
 - macOS only; on other platforms the command refuses instead of pretending.
 

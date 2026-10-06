@@ -255,7 +255,7 @@ export function generateOpenApiSpec() {
     info: {
       title: `${appName} API`,
       version: appVersion,
-      description: `REST API for managing ${appName} todos, projects, tags, and areas on macOS.`,
+      description: `REST API for managing Things3 todos, projects, tags, and areas on macOS.`,
     },
     paths,
     tags: [
@@ -275,7 +275,7 @@ export function getHomePage() {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Things3</title>
+  <title>${appName}</title>
   <link rel="icon" href="/favicon.ico">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -303,7 +303,7 @@ export function getHomePage() {
   </style>
 </head>
 <body>
-  <h1>Things3</h1>
+  <h1>${appName}</h1>
   <p class="subtitle">Your todos from Things3 &middot; <a href="/api">API Docs</a></p>
   <div class="tabs" id="tabs"></div>
   <ul class="list" id="list"><li class="loading">Loading...</li></ul>
@@ -372,7 +372,7 @@ export function getSwaggerHtml() {
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Things3 API</title>
+  <title>${appName} API</title>
   <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
 </head>
 <body>
@@ -401,7 +401,7 @@ export function getAuthPage(next = '/', error?: string) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Things3 — sign in</title>
+  <title>${appName} — sign in</title>
   <link rel="icon" href="/favicon.ico">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -419,7 +419,7 @@ export function getAuthPage(next = '/', error?: string) {
 </head>
 <body>
   <div class="card">
-    <h1>Things3</h1>
+    <h1>${appName}</h1>
     <p>Paste the token printed on server startup, or the value of <code>AWESOME_THINGS_TOKEN</code>.</p>
     ${error ? `<div class="error">${error}</div>` : ''}
     <form method="POST" action="/auth">

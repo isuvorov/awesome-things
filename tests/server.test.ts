@@ -254,6 +254,12 @@ describe('GET /', () => {
     const html = await res.text();
     expect(html).toContain('<');
   });
+
+  test('carries our name — Things3 is the app we talk to, not the one serving the page', async () => {
+    const html = await (await fetch(`${baseUrl}/`)).text();
+    expect(html).toContain('<title>awesome-things</title>');
+    expect(html).toContain('<h1>awesome-things</h1>');
+  });
 });
 
 // ── Auth enforcement ─────────────────────────────────────────────

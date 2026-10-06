@@ -7,7 +7,7 @@ import {
   type RunResult,
 } from '../src/daemon/launchctl.js';
 import { buildTailArgs, logFiles, wantsFollow } from '../src/daemon/logs.js';
-import { type DaemonResult, hasConfigOverrides, planUp } from '../src/daemon/ops.js';
+import { type DaemonResult, hasConfigOverrides, planUp, portOwner } from '../src/daemon/ops.js';
 import {
   daemonLabel,
   daemonPaths,
@@ -370,6 +370,33 @@ describe('planUp', () => {
   });
 });
 
+describe('portOwner', () => {
+  const launchd = { running: true, pid: 26920 };
+
+  test('passes a free or foreign port through', () => {
+    expect(portOwner({ probe: 'free', launchd })).toBe('free');
+    expect(portOwner({ probe: 'other', launchd })).toBe('other');
+  });
+
+  test('recognises the daemon itself — install must not call it a hand-started server', () => {
+    expect(portOwner({ probe: 'ours', launchd, servingPid: 26920 })).toBe('daemon');
+  });
+
+  test('a different pid on the port is a hand-started server', () => {
+    expect(portOwner({ probe: 'ours', launchd, servingPid: 4242 })).toBe('manual');
+  });
+
+  test('nothing under launchd means the port belongs to a hand-started server', () => {
+    expect(portOwner({ probe: 'ours', launchd: { running: false }, servingPid: 4242 })).toBe(
+      'manual',
+    );
+  });
+
+  test('without a pid from /health, launchd running the job decides', () => {
+    expect(portOwner({ probe: 'ours', launchd })).toBe('daemon');
+  });
+});
+
 describe('hasConfigOverrides', () => {
   test('ignores an empty invocation', () => {
     expect(hasConfigOverrides({})).toBe(false);
@@ -437,6 +464,12 @@ describe('formatDaemonResult', () => {
   test('tells the user how to watch the logs', () => {
     expect(text).toContain('awesome-things daemon logs -f');
     expect(text).toContain('awesome-things daemon status');
+  });
+
+  test('leads with daemon start when a hand-started server holds the port', () => {
+    const manual = stripAnsi(formatDaemonResult({ ...SAMPLE, running: false, healthy: true }));
+    const next = manual.slice(manual.indexOf('── Next ──'));
+    expect(next.split('\n')[1]).toContain('awesome-things daemon start');
   });
 
   test('prints warnings instead of hiding them', () => {

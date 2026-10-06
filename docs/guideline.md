@@ -252,10 +252,13 @@ The design decisions worth knowing:
 - **`ProgramArguments` is `[process.execPath, realpath(argv[1]), 'server']`.** Never the bin
   itself: after `npm link` it is a symlink, and its exec bit and shebang cannot be trusted —
   launchd would fail with a bare "Operation not permitted".
-- **`install` refuses to start over a running server.** If `/health` on the port already answers
-  with this app, the plist is written but nothing is bootstrapped, and the result carries a
-  warning. This is what keeps a daemon install from stealing an frp domain from a server the user
-  started by hand.
+- **`install` refuses to start over a hand-started server — but not over itself.** "This app
+  answers `/health`" is the daemon just as often as a manual server, so `portOwner()` compares the
+  pid `/health` reports with the pid from `launchctl print`. A manual server gets the plist written,
+  nothing bootstrapped and a warning naming its pid — that keeps an install from stealing the frp
+  domain. The daemon itself is booted out and bootstrapped again, because a rewritten plist does
+  nothing to a job that is already running. With no pid (old build, wrong token) launchd running
+  the job decides: a manual server on the port would have made the daemon exit.
 - **Two independent truths in `status`.** `launchctl print` says whether launchd runs the job;
   `probePort()` says whether it answers `/health`. A job can be `running` and dead to HTTP (for
   example while macOS waits for Automation approval), so both are reported.

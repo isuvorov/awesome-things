@@ -136,6 +136,9 @@ src/
   would hand the frp domain to a new process), launchd runs it but nothing answers → restart,
   installed and down → start. It then attaches to the logs, except under `--json` or a non-TTY
   stdout. Starting it is still the user's step, never the agent's
+- **`install` tells the daemon from a hand-started server by pid** — `portOwner()` in `ops.ts`
+  compares the pid `/health` reports with `launchctl print`. Only a manual server blocks the
+  install; the daemon itself is reloaded, since a rewritten plist means nothing to a running job
 - **The token must be pinned into the plist.** A daemonized server that mints a random token has
   nowhere to print it — `install` takes `--token`, `AWESOME_THINGS_TOKEN`, the already-installed
   agent's token, or generates one, and the plist is `chmod 600` because it holds that token

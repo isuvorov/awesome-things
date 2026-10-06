@@ -11,6 +11,7 @@ import {
 import { homedir } from 'node:os';
 import { dirname } from 'node:path';
 import { defaultPort } from '../config.js';
+import { fetchInstanceInfo } from '../server/attach.js';
 import { APP_ID, probePort } from '../server/port.js';
 import { detectSource } from '../tools/info.js';
 import { generateToken } from '../utils/auth.js';
@@ -267,22 +268,43 @@ export async function installDaemon(options: InstallOptions = {}): Promise<Daemo
   chmodSync(paths.plist, 0o600);
 
   const probe = await probePort(port);
-  if (probe === 'ours') {
+  const state = await printService();
+  // The running instance still holds the token of the plist we just overwrote.
+  const info = probe === 'ours' ? await fetchInstanceInfo(port, stored.token ?? token) : undefined;
+  const owner = portOwner({ probe, launchd: state, servingPid: info?.pid });
+
+  if (owner === 'manual') {
+    const pid = info?.pid ? ` (pid ${info.pid})` : '';
     warnings.push(
-      `Port ${port} is already served by ${APP_ID} — a manually started server is running. The plist is installed but the daemon was not started; stop that process and run "${APP_ID} daemon start".`,
+      `Port ${port} is already served by a manually started ${APP_ID}${pid}. The plist is installed but the daemon was not started; stop that process and run "${APP_ID} daemon start".`,
     );
-    return buildResult('install', { port, token, healthy: true, warnings, hints });
+    return buildResult('install', { state, port, token, healthy: true, warnings, hints });
   }
-  if (probe === 'other') {
+  if (owner === 'other') {
     warnings.push(
       `Port ${port} is taken by another app — the server will fall back to ${port + 1} and the URL above will be wrong.`,
     );
   }
 
   if (options.start === false) {
-    hints.push(`${APP_ID} daemon start`);
-    return buildResult('install', { port, token, healthy: false, warnings, hints });
+    // A running daemon keeps the old plist until it is restarted — say so instead of "start".
+    if (owner === 'daemon') {
+      warnings.push(`The daemon keeps running with the previous settings until it is restarted.`);
+      hints.push(`${APP_ID} daemon restart`);
+    } else {
+      hints.push(`${APP_ID} daemon start`);
+    }
+    return buildResult('install', {
+      state,
+      port,
+      token,
+      healthy: owner === 'daemon',
+      warnings,
+      hints,
+    });
   }
+
+  // owner === 'daemon' falls through on purpose: bootout + bootstrap is what applies the new plist.
 
   await bootoutService();
   const bootstrap = await bootstrapService(paths.plist);
@@ -399,6 +421,29 @@ export async function daemonStatus(): Promise<DaemonResult> {
     result.hints.push(`Not answering? ${APP_ID} daemon logs --err`);
   }
   return result;
+}
+
+export type PortOwner = 'free' | 'other' | 'daemon' | 'manual';
+
+/**
+ * Who answers on the port. `probePort` only says "an awesome-things", which is the daemon
+ * itself just as often as a hand-started server — the pid `/health` reports tells them apart.
+ * Without a pid (old build, wrong token) launchd running the job decides: a hand-started
+ * server holding the port would have made the daemon exit, so launchd would not show it running.
+ */
+export function portOwner({
+  probe,
+  launchd,
+  servingPid,
+}: {
+  probe: 'ours' | 'other' | 'free';
+  launchd: Pick<ServiceState, 'running' | 'pid'>;
+  servingPid?: number;
+}): PortOwner {
+  if (probe !== 'ours') return probe;
+  if (!launchd.running) return 'manual';
+  if (servingPid === undefined || launchd.pid === undefined) return 'daemon';
+  return servingPid === launchd.pid ? 'daemon' : 'manual';
 }
 
 export type UpPlan = 'install' | 'start' | 'restart' | 'nothing';

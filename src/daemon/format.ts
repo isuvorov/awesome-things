@@ -69,6 +69,9 @@ function nextCommands(result: DaemonResult): Array<[string, string]> {
   ];
   if (result.action === 'stop') {
     commands.unshift([`${APP_ID} daemon start`, 'start it again']);
+  } else if (!result.running && result.healthy) {
+    // A hand-started server holds the port — the one thing to do is hand it over to launchd.
+    commands.unshift([`${APP_ID} daemon start`, 'after stopping the hand-started server']);
   } else {
     commands.push([`${APP_ID} daemon restart`, 'restart it after an update']);
   }

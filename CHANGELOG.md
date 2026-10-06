@@ -1,3 +1,10 @@
+## [1.6.2](https://github.com/isuvorov/awesome-things/compare/v1.6.1...v1.6.2) (2026-10-06)
+
+
+### Bug Fixes
+
+* **daemon:** make install idempotent, reload through kickstart and drop the legacy log warning ([72c4fa6](https://github.com/isuvorov/awesome-things/commit/72c4fa6e95abbc03950c41dfd25a97a07f31b31d))
+
 ## [1.6.1](https://github.com/isuvorov/awesome-things/compare/v1.6.0...v1.6.1) (2026-10-06)
 
 

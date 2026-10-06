@@ -59,6 +59,20 @@ describe('parseUserConfig', () => {
     expect(() => parseUserConfig('{"tokn":"t"}', 'config.json')).toThrow(/tokn/);
   });
 
+  test('a _ or // prefix turns a key into a comment, at any depth', () => {
+    const config = parseUserConfig(
+      JSON.stringify({
+        '//': 'personal Things setup',
+        _frp: { serverAddr: 'disabled-for-now' },
+        __note: 'tokens rotated 2026-10',
+        port: 32121,
+        frp: { serverAddr: 'balancer', _serverPort: 7777 },
+      }),
+      'config.json',
+    );
+    expect(config).toEqual({ port: 32121, frp: { serverAddr: 'balancer' } });
+  });
+
   test('explains broken JSON', () => {
     expect(() => parseUserConfig('{port: 1}', 'config.json')).toThrow(/not valid JSON/);
   });
@@ -140,5 +154,11 @@ describe('config.schema.json', () => {
       readFileSync(join(import.meta.dirname, '..', 'config.schema.json'), 'utf-8'),
     );
     expect(committed).toEqual(configJsonSchema());
+  });
+
+  test('lets editors accept comment keys at every strict level', () => {
+    const schema = configJsonSchema() as any;
+    expect(Object.keys(schema.patternProperties)).toEqual(['^(_|\\/\\/)']);
+    expect(schema.properties.frp.patternProperties).toBeDefined();
   });
 });

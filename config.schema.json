@@ -89,7 +89,10 @@
           "minLength": 1
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(_|\\/\\/)": {}
+      }
     },
     "ngrok": {
       "description": "ngrok tunnel settings",
@@ -101,10 +104,16 @@
           "minLength": 1
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(_|\\/\\/)": {}
+      }
     }
   },
   "additionalProperties": false,
+  "patternProperties": {
+    "^(_|\\/\\/)": {}
+  },
   "$id": "https://unpkg.com/awesome-things/config.schema.json",
   "title": "awesome-things config"
 }

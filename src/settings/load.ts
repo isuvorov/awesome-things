@@ -2,7 +2,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
-import { toEnvironment, type UserConfig, userConfigSchema } from './schema.js';
+import { stripCommentKeys, toEnvironment, type UserConfig, userConfigSchema } from './schema.js';
 
 /** `$AWESOME_THINGS_CONFIG`, then the XDG config dir — the same place `gh` or `starship` use. */
 export function configPath(
@@ -20,7 +20,7 @@ export function parseUserConfig(text: string, path: string): UserConfig {
   } catch (err) {
     throw new Error(`${path} is not valid JSON: ${String(err)}`);
   }
-  const result = userConfigSchema.safeParse(raw);
+  const result = userConfigSchema.safeParse(stripCommentKeys(raw));
   if (!result.success) {
     throw new Error(`${path} is invalid:\n${z.prettifyError(result.error)}`);
   }

@@ -64,6 +64,33 @@ export const userConfigSchema = z
 
 export type UserConfig = z.infer<typeof userConfigSchema>;
 
+/**
+ * JSON has no comments, so a key starting with `_` (or `//`, the npm convention) is one:
+ * `"_frp": {...}` switches a section off, `"_note": "..."` explains a value. Any other unknown
+ * key is still a typo and still an error — the schema stays strict.
+ */
+export const COMMENT_KEY = /^(_|\/\/)/;
+
+export function stripCommentKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripCommentKeys);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => !COMMENT_KEY.test(key))
+      .map(([key, inner]) => [key, stripCommentKeys(inner)]),
+  );
+}
+
+/** Let editors accept the comment keys too, wherever the schema forbids unknown properties. */
+function allowCommentKeys(node: unknown): void {
+  if (!node || typeof node !== 'object') return;
+  const schema = node as Record<string, unknown>;
+  if (schema.additionalProperties === false) {
+    schema.patternProperties = { [COMMENT_KEY.source]: {} };
+  }
+  for (const inner of Object.values(schema)) allowCommentKeys(inner);
+}
+
 const FRP_KEYS = {
   serverAddr: 'SERVER_ADDR',
   serverPort: 'SERVER_PORT',
@@ -102,8 +129,10 @@ export function toEnvironment(config: UserConfig): Array<{ names: string[]; valu
 
 /** What `config.schema.json` contains — generated, never hand-edited. */
 export function configJsonSchema(): Record<string, unknown> {
+  const schema = z.toJSONSchema(userConfigSchema, { io: 'input' });
+  allowCommentKeys(schema);
   return {
-    ...z.toJSONSchema(userConfigSchema, { io: 'input' }),
+    ...schema,
     $id: 'https://unpkg.com/awesome-things/config.schema.json',
     title: 'awesome-things config',
   };

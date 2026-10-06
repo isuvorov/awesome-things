@@ -44,6 +44,10 @@ about Things3 behaviour. Use scratch objects (`__mvp-check-*`) and delete them a
 
 ### Git
 - **Commit to `main` directly.** No branches unless the user asks for one.
+- **Never `git add -A` / `git add .` / `git commit -a`.** Stage explicit paths and read
+  `git diff --staged --stat` before committing. A blind `add -A` once shipped two 61 MB
+  `.bun-build` leftovers of an interrupted `bun build --compile` into `main`, and purging them
+  took a rewrite of 25 published commits and their release tags.
 - **Author:** the environment forces `GIT_AUTHOR_NAME`/`GIT_COMMITTER_NAME` to `isuvorovBOT`, which
   overrides `.gitconfig`. Checking `git config user.name` does not reveal this. Always export all
   four before committing:

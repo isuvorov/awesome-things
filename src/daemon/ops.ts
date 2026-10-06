@@ -2,6 +2,7 @@ import {
   chmodSync,
   existsSync,
   mkdirSync,
+  readFileSync,
   realpathSync,
   renameSync,
   rmSync,
@@ -20,16 +21,19 @@ import {
   bootstrapService,
   kickstartService,
   printService,
+  type RunResult,
   readPlistJson,
   type ServiceState,
 } from './launchctl.js';
-import { daemonPaths, legacyLogDir } from './paths.js';
+import { daemonPaths } from './paths.js';
 import { buildPlist, collectEnvironment, resolveProgramArguments } from './plist.js';
 
 /** launchd never rotates anything; a chatty server would otherwise fill the disk. */
 const LOG_ROTATE_LIMIT = 10 * 1024 * 1024;
 const HEALTH_TIMEOUT_MS = 10_000;
 const HEALTH_INTERVAL_MS = 250;
+/** `bootout` returns before launchd has torn the job down; a bootstrap inside that window fails. */
+const UNLOAD_TIMEOUT_MS = 5_000;
 
 export type DaemonActionName =
   | 'install'
@@ -113,6 +117,14 @@ function safeRealpath(path: string): string {
   }
 }
 
+function readTextFile(path: string): string | undefined {
+  try {
+    return readFileSync(path, 'utf-8');
+  } catch {
+    return undefined;
+  }
+}
+
 function fileSize(path: string): number {
   try {
     return statSync(path).size;
@@ -135,6 +147,39 @@ async function waitForHealth(port: number, timeoutMs = HEALTH_TIMEOUT_MS): Promi
     await new Promise((resolve) => setTimeout(resolve, HEALTH_INTERVAL_MS));
   }
   return false;
+}
+
+async function waitUntilUnloaded(timeoutMs = UNLOAD_TIMEOUT_MS): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (!(await printService()).loaded) return;
+    await new Promise((resolve) => setTimeout(resolve, HEALTH_INTERVAL_MS));
+  }
+}
+
+/**
+ * Load the job and make it run now. `bootstrap` alone leaves the spawn to launchd, which holds
+ * it back for `ThrottleInterval` after a recent exit or kill — longer than we wait for /health.
+ * `kickstart` (no `-k`) runs it "regardless of its configured launch conditions" and is a
+ * no-op for an instance RunAtLoad already started.
+ */
+async function bootstrapAndRun(plistPath: string): Promise<RunResult> {
+  const result = await bootstrapService(plistPath);
+  if (result.code === 0) await kickstartService({ kill: false });
+  return result;
+}
+
+/** Why /health stayed silent — "grant Automation" is only one of the answers. */
+async function explainUnhealthy(): Promise<string> {
+  const state = await printService();
+  if (!state.loaded) {
+    return `launchd did not load the job — run "${APP_ID} daemon start" and check "${APP_ID} daemon logs --err".`;
+  }
+  if (!state.running) {
+    const exit = state.lastExitCode ? ` (last exit code ${state.lastExitCode})` : '';
+    return `launchd has the job loaded but no process is running${exit} — see "${APP_ID} daemon logs --err".`;
+  }
+  return `The daemon (pid ${state.pid ?? '?'}) did not answer /health within ${HEALTH_TIMEOUT_MS / 1000}s. macOS may be waiting for you to grant Automation access to Things3 — check the logs.`;
 }
 
 interface InstalledPlist {
@@ -228,12 +273,6 @@ export async function installDaemon(options: InstallOptions = {}): Promise<Daemo
     ? undefined
     : options.token || process.env.AWESOME_THINGS_TOKEN || stored.token || generateToken();
 
-  // Logs moved to ~/.local/share; say where the old ones went rather than orphaning them.
-  const legacy = legacyLogDir();
-  if (legacy !== paths.logDir && existsSync(legacy)) {
-    warnings.push(`Older logs are still in ${legacy} — this install writes to ${paths.logDir}.`);
-  }
-
   mkdirSync(paths.logDir, { recursive: true });
   mkdirSync(dirname(paths.plist), { recursive: true });
   rotateIfLarge(paths.outLog);
@@ -263,21 +302,31 @@ export async function installDaemon(options: InstallOptions = {}): Promise<Daemo
     errLog: paths.errLog,
   });
 
-  writeFileSync(paths.plist, plist, 'utf-8');
-  // The plist carries the bearer token — keep it out of reach of other users.
-  chmodSync(paths.plist, 0o600);
+  // Comparing the bytes is what makes install idempotent: the same flags and env produce the
+  // same plist, and an unchanged plist is never a reason to restart a running daemon.
+  const changed = readTextFile(paths.plist) !== plist;
+  if (changed) {
+    writeFileSync(paths.plist, plist, 'utf-8');
+    // The plist carries the bearer token — keep it out of reach of other users.
+    chmodSync(paths.plist, 0o600);
+  }
 
   const probe = await probePort(port);
   const state = await printService();
-  // The running instance still holds the token of the plist we just overwrote.
+  // The running instance still holds the token of the plist it was started from.
   const info = probe === 'ours' ? await fetchInstanceInfo(port, stored.token ?? token) : undefined;
   const owner = portOwner({ probe, launchd: state, servingPid: info?.pid });
+  const plan = planInstall({ owner, changed, start: options.start });
 
-  if (owner === 'manual') {
+  if (plan === 'blocked') {
     const pid = info?.pid ? ` (pid ${info.pid})` : '';
     warnings.push(
       `Port ${port} is already served by a manually started ${APP_ID}${pid}. The plist is installed but the daemon was not started; stop that process and run "${APP_ID} daemon start".`,
     );
+    return buildResult('install', { state, port, token, healthy: true, warnings, hints });
+  }
+  if (plan === 'unchanged') {
+    hints.push('Already up to date — the running daemon uses this exact plist, nothing restarted.');
     return buildResult('install', { state, port, token, healthy: true, warnings, hints });
   }
   if (owner === 'other') {
@@ -285,11 +334,10 @@ export async function installDaemon(options: InstallOptions = {}): Promise<Daemo
       `Port ${port} is taken by another app — the server will fall back to ${port + 1} and the URL above will be wrong.`,
     );
   }
-
-  if (options.start === false) {
+  if (plan === 'deferred') {
     // A running daemon keeps the old plist until it is restarted — say so instead of "start".
     if (owner === 'daemon') {
-      warnings.push(`The daemon keeps running with the previous settings until it is restarted.`);
+      warnings.push('The daemon keeps running with the previous settings until it is restarted.');
       hints.push(`${APP_ID} daemon restart`);
     } else {
       hints.push(`${APP_ID} daemon start`);
@@ -304,10 +352,10 @@ export async function installDaemon(options: InstallOptions = {}): Promise<Daemo
     });
   }
 
-  // owner === 'daemon' falls through on purpose: bootout + bootstrap is what applies the new plist.
-
+  // plan === 'reload': a rewritten plist reaches launchd only through bootout + bootstrap.
   await bootoutService();
-  const bootstrap = await bootstrapService(paths.plist);
+  await waitUntilUnloaded();
+  const bootstrap = await bootstrapAndRun(paths.plist);
   if (bootstrap.code !== 0) {
     return buildResult('install', {
       port,
@@ -320,11 +368,7 @@ export async function installDaemon(options: InstallOptions = {}): Promise<Daemo
   }
 
   const healthy = await waitForHealth(port);
-  if (!healthy) {
-    warnings.push(
-      `The daemon did not answer /health within ${HEALTH_TIMEOUT_MS / 1000}s. macOS may be waiting for you to grant Automation access to Things3 — check the logs.`,
-    );
-  }
+  if (!healthy) warnings.push(await explainUnhealthy());
   return buildResult('install', { port, token, healthy, warnings, hints });
 }
 
@@ -366,7 +410,7 @@ export async function startDaemon(): Promise<DaemonResult> {
     throw new Error(`Daemon is not installed — run "${APP_ID} daemon install" first`);
   }
 
-  const result = await bootstrapService(paths.plist);
+  const result = await bootstrapAndRun(paths.plist);
   if (result.code !== 0) {
     return buildResult('start', {
       ok: false,
@@ -444,6 +488,28 @@ export function portOwner({
   if (!launchd.running) return 'manual';
   if (servingPid === undefined || launchd.pid === undefined) return 'daemon';
   return servingPid === launchd.pid ? 'daemon' : 'manual';
+}
+
+export type InstallPlan = 'blocked' | 'unchanged' | 'deferred' | 'reload';
+
+/**
+ * What `install` does after writing the plist. Running it three times in a row must cost at
+ * most one restart: each restart hands the frp domain to a new process, and back-to-back
+ * restarts run into launchd's ThrottleInterval.
+ */
+export function planInstall({
+  owner,
+  changed,
+  start,
+}: {
+  owner: PortOwner;
+  changed: boolean;
+  start?: boolean;
+}): InstallPlan {
+  if (owner === 'manual') return 'blocked';
+  if (owner === 'daemon' && !changed) return 'unchanged';
+  if (start === false) return 'deferred';
+  return 'reload';
 }
 
 export type UpPlan = 'install' | 'start' | 'restart' | 'nothing';

@@ -283,8 +283,8 @@ things daemon logs --clear         # truncate both files
 | What | Where |
 |---|---|
 | Agent | `~/Library/LaunchAgents/com.isuvorov.awesome-things.plist` (mode `600`) |
-| Requests | `~/Library/Logs/awesome-things/server.log` |
-| Errors | `~/Library/Logs/awesome-things/server.error.log` |
+| Requests | `~/.local/share/awesome-things/logs/server.log` |
+| Errors | `~/.local/share/awesome-things/logs/server.error.log` |
 | Health | `curl http://localhost:32123/health` |
 
 Notes:
@@ -292,6 +292,8 @@ Notes:
 - The bearer token is **pinned into the agent** at install time (taken from `--token`,
   `AWESOME_THINGS_TOKEN`, the previously installed agent, or generated). A daemonized server
   cannot print a fresh random token anywhere you would see it.
+- `install` is safe to repeat: with the same flags and environment the plist comes out
+  identical and the running daemon is left alone. Only a real change restarts it.
 - launchd starts a job with an almost empty environment. `install` bakes in `PATH`, `HOME` and
   every `AWESOME_THINGS_*` / `FRP_*` / `NGROK_AUTHTOKEN` variable from the shell you ran it in —
   change one of them and run `things daemon install` again.

@@ -13,11 +13,6 @@ export interface DaemonPaths {
   errLog: string;
 }
 
-/** Where ~/Library/Logs/awesome-things used to be — `install` points at it if it is still there. */
-export function legacyLogDir(home: string = homedir()): string {
-  return join(home, 'Library', 'Logs', appName);
-}
-
 /**
  * `~/.local/share/<app>/logs`, not `~/Library/Logs`: everything else in this setup keeps
  * its logs under XDG_DATA_HOME, and one predictable place beats a macOS-only convention

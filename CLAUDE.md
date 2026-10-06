@@ -139,6 +139,9 @@ src/
 - **`install` tells the daemon from a hand-started server by pid** — `portOwner()` in `ops.ts`
   compares the pid `/health` reports with `launchctl print`. Only a manual server blocks the
   install; the daemon itself is reloaded, since a rewritten plist means nothing to a running job
+- **`install` is idempotent** — `planInstall()` restarts only when the plist bytes changed. A reload
+  is bootout → `waitUntilUnloaded()` → bootstrap → `kickstart` (no `-k`): bootstrapping into a
+  half-torn-down job returns `Input/output error`, and `kickstart` bypasses `ThrottleInterval`
 - **The token must be pinned into the plist.** A daemonized server that mints a random token has
   nowhere to print it — `install` takes `--token`, `AWESOME_THINGS_TOKEN`, the already-installed
   agent's token, or generates one, and the plist is `chmod 600` because it holds that token

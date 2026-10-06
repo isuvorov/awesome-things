@@ -7,15 +7,14 @@ import {
   type RunResult,
 } from '../src/daemon/launchctl.js';
 import { buildTailArgs, logFiles, wantsFollow } from '../src/daemon/logs.js';
-import { type DaemonResult, hasConfigOverrides, planUp, portOwner } from '../src/daemon/ops.js';
 import {
-  daemonLabel,
-  daemonPaths,
-  legacyLogDir,
-  logDir,
-  serviceId,
-  serviceTarget,
-} from '../src/daemon/paths.js';
+  type DaemonResult,
+  hasConfigOverrides,
+  planInstall,
+  planUp,
+  portOwner,
+} from '../src/daemon/ops.js';
+import { daemonLabel, daemonPaths, logDir, serviceId, serviceTarget } from '../src/daemon/paths.js';
 import {
   buildPath,
   buildPlist,
@@ -48,10 +47,6 @@ describe('daemonPaths', () => {
     expect(logDir(HOME, { XDG_DATA_HOME: '/data', AWESOME_THINGS_LOG_DIR: '/tmp/at' })).toBe(
       '/tmp/at',
     );
-  });
-
-  test('still knows where the logs used to live', () => {
-    expect(legacyLogDir(HOME)).toBe(`${HOME}/Library/Logs/awesome-things`);
   });
 
   test('targets the GUI domain — AppleScript needs an Aqua session', () => {
@@ -394,6 +389,30 @@ describe('portOwner', () => {
 
   test('without a pid from /health, launchd running the job decides', () => {
     expect(portOwner({ probe: 'ours', launchd })).toBe('daemon');
+  });
+});
+
+describe('planInstall', () => {
+  test('repeating an install of the same plist restarts nothing', () => {
+    expect(planInstall({ owner: 'daemon', changed: false })).toBe('unchanged');
+  });
+
+  test('a changed plist reloads the running daemon — launchd never rereads it on its own', () => {
+    expect(planInstall({ owner: 'daemon', changed: true })).toBe('reload');
+  });
+
+  test('never takes the port from a hand-started server', () => {
+    expect(planInstall({ owner: 'manual', changed: true })).toBe('blocked');
+    expect(planInstall({ owner: 'manual', changed: false })).toBe('blocked');
+  });
+
+  test('a stopped daemon is started even when the plist did not change', () => {
+    expect(planInstall({ owner: 'free', changed: false })).toBe('reload');
+  });
+
+  test('--no-start only writes the plist', () => {
+    expect(planInstall({ owner: 'free', changed: true, start: false })).toBe('deferred');
+    expect(planInstall({ owner: 'daemon', changed: true, start: false })).toBe('deferred');
   });
 });
 

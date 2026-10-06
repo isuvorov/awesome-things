@@ -48,7 +48,7 @@ src/
 │   ├── list-ops.ts       # listTags, listAreas
 │   └── move-ops.ts       # moveTodo, moveTodoToProject, moveTodoToArea, moveProjectToArea, removeTodoFromProject, removeProjectFromArea
 ├── daemon/               # Background launchd agent (macOS)
-│   ├── paths.ts          # daemonLabel, daemonPaths, logDir, legacyLogDir, serviceTarget, serviceId
+│   ├── paths.ts          # daemonLabel, daemonPaths, logDir, serviceTarget, serviceId
 │   ├── plist.ts          # buildPlist, collectEnvironment, buildPath, resolveProgramArguments
 │   ├── launchctl.ts      # run, bootstrapService, bootoutService, kickstartService, parseLaunchctlPrint
 │   ├── ops.ts            # upDaemon/planUp, installDaemon, uninstallDaemon, start/stop/restartDaemon, daemonStatus
@@ -259,6 +259,17 @@ The design decisions worth knowing:
   domain. The daemon itself is booted out and bootstrapped again, because a rewritten plist does
   nothing to a job that is already running. With no pid (old build, wrong token) launchd running
   the job decides: a manual server on the port would have made the daemon exit.
+- **`install` is idempotent.** It compares the plist it would write with the one on disk byte for
+  byte; `planInstall()` restarts the daemon only when they differ. Three installs in a row cost at
+  most one restart — every restart hands the frp domain to a new process.
+- **Reload is bootout → wait → bootstrap → kickstart.** `bootout` returns before launchd has torn
+  the job down, and a bootstrap inside that window fails with `Input/output error`, which
+  `bootstrapService` has to treat as "already loaded" — so `waitUntilUnloaded()` polls
+  `launchctl print` first. `bootstrap` then leaves the spawn to launchd, which holds it back for
+  `ThrottleInterval` (10s) after a recent exit or kill; `kickstart` without `-k` runs the job
+  "regardless of its configured launch conditions". When `/health` still stays silent,
+  `explainUnhealthy()` says whether the job is not loaded, loaded but not running, or running and
+  mute — only the last one is the Automation prompt.
 - **Two independent truths in `status`.** `launchctl print` says whether launchd runs the job;
   `probePort()` says whether it answers `/health`. A job can be `running` and dead to HTTP (for
   example while macOS waits for Automation approval), so both are reported.
@@ -267,8 +278,7 @@ The design decisions worth knowing:
 machine (`~/.local/share/openhealth/logs/`, `~/.local/share/vibe-manager/logs/`) rather than the
 macOS `~/Library/Logs`. `AWESOME_THINGS_LOG_DIR` overrides the directory outright, `XDG_DATA_HOME`
 moves the base. The paths are frozen into `StandardOutPath`/`StandardErrorPath`, so changing either
-variable needs a fresh `daemon install`; `install` warns when logs are still sitting in the old
-`~/Library/Logs` location.
+variable needs a fresh `daemon install`.
 
 **Logs are the only UI a daemon has.** `logger.ts` already degrades to plain, ANSI-free lines when
 stdout is not a TTY, so the files stay readable. `daemon logs` shells out to `tail` with `-F`

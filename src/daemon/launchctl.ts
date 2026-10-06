@@ -78,9 +78,16 @@ export async function bootoutService(): Promise<RunResult> {
   return result;
 }
 
-/** `-k` kills the running instance first — the only reliable "pick up new code" restart. */
-export async function kickstartService(): Promise<RunResult> {
-  return run('launchctl', ['kickstart', '-k', serviceId()]);
+/**
+ * `-k` kills the running instance first — the only reliable "pick up new code" restart.
+ * Without it, kickstart only spawns a job that is not running, bypassing ThrottleInterval.
+ */
+export async function kickstartService({
+  kill = true,
+}: {
+  kill?: boolean;
+} = {}): Promise<RunResult> {
+  return run('launchctl', ['kickstart', ...(kill ? ['-k'] : []), serviceId()]);
 }
 
 /** Reads a plist back as JSON. `plutil` ships with every macOS. */

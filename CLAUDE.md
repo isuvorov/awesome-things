@@ -111,7 +111,8 @@ src/
 │   ├── logs.ts           # tail / follow / clear the log files
 │   └── format.ts         # Human-readable daemon report
 ├── api/                  # Things3 operations (AppleScript)
-│   ├── todo-ops.ts       # Todo operations (create, list, complete, cancel, delete, update, search)
+│   ├── todo-ops.ts       # Todo operations (create, get, list, complete, cancel, delete, update, search)
+│   ├── errors.ts         # NotFoundError / isNotFound — HTTP answers 404
 │   ├── when.ts           # Things' "When" field (schedule) — not the deadline
 │   ├── url-scheme.ts     # things:/// fallback — evening, reminders, checklists
 │   ├── batch.ts          # runBatch — one todo op applied to an array of ids
@@ -125,6 +126,7 @@ src/
 │   ├── http.ts           # json / handle / body helpers + CORS headers
 │   ├── logger.ts         # Request box, colors, logError
 │   ├── mcp-http.ts       # MCP-over-HTTP: stateless transport per request
+│   ├── todo-page.ts      # /todo/{id} — shareable web page of one todo, escapeHtml
 │   └── port.ts           # Port probing
 ├── settings/             # ~/.config/awesome-things/config.json → process.env
 │   ├── schema.ts         # zod schema, env mapping, JSON Schema generator
@@ -140,6 +142,10 @@ src/
 - `Bun.serve` always needs an `error()` handler, otherwise Bun prints `error: undefined` and kills the process
 - `idleTimeout: 0` — MCP streams and AppleScript calls outlive Bun's 10s default
 - `GET /mcp` answers `405` on purpose: in stateless mode a server-initiated SSE stream would hang forever
+- **`/todo/{id}` is the shareable link to a todo** — server-rendered HTML. Without the cookie it
+  answers `303` to `/auth?next=/todo/{id}`, never a JSON 401: whoever opens it is a browser
+- **Everything from Things3 goes through `escapeHtml()`** before it reaches a page, and every
+  `next` through `safeNextPath()` — `//host` starts with a slash too and is an open redirect
 
 ## Daemon Rules (`awesome-things daemon`)
 - **`daemon` with no subcommand is `daemon up`** — `planUp()` in `ops.ts` decides: no plist →
@@ -222,7 +228,7 @@ src/
 - `test:unit` globs `tests/[!s]*.test.ts` — a test file starting with `s` silently never runs
 
 ## Key Architecture
-- **21 tools** for managing Things3: todos, projects, tags, areas, move/remove/delete
+- **22 tools** for managing Things3: todos, projects, tags, areas, move/remove/delete
 - **AppleScript** — only way to programmatically control Things3 on macOS
 - **4 interfaces**: JS/TS API (`api.ts`), MCP server (`mcp.ts`), CLI (`cli.ts`), HTTP API (`server.ts`)
 - Todos/projects are addressed by **id or name**; todo ops also take `ids` for batches

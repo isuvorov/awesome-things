@@ -51,6 +51,21 @@ export interface ActionResult {
   results?: BatchItemResult[];
 }
 
+/** One todo with everything AppleScript knows about it — what `get_todo` and `/todo/{id}` show. */
+export interface TodoDetails extends TodoItem {
+  /** Things' "When" (activation date), YYYY-MM-DD — not the deadline. */
+  when: string;
+  area: string;
+  /** YYYY-MM-DD HH:MM, local time of the Mac. */
+  created: string;
+  modified: string;
+  completed: string;
+}
+
+export interface GetTodoResult {
+  todo: TodoDetails;
+}
+
 export interface ListTodosResult {
   list: string;
   todos: TodoItem[];
@@ -196,6 +211,11 @@ export const UpdateTodoArgsBaseSchema = z.object({
 });
 export const UpdateTodoArgsSchema = UpdateTodoArgsBaseSchema.refine(idOrName, idOrNameMsg);
 export type UpdateTodoArgs = z.infer<typeof UpdateTodoArgsSchema>;
+
+export const GetTodoArgsSchema = z.object({
+  id: z.string().min(1).describe('Things3 id of the todo'),
+});
+export type GetTodoArgs = z.infer<typeof GetTodoArgsSchema>;
 
 export const SearchTodosArgsSchema = z.object({
   query: z.string().describe('Search query to find todos by name'),
@@ -471,6 +491,13 @@ export const toolSchemas = {
       },
     },
     required: [] as string[],
+  },
+  get_todo: {
+    type: 'object' as const,
+    properties: {
+      id: { type: 'string', description: 'Things3 id of the todo' },
+    },
+    required: ['id'],
   },
   search_todos: {
     type: 'object' as const,

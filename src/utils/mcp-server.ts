@@ -21,6 +21,7 @@ import {
   completeTodo,
   createTodo,
   deleteTodo,
+  getTodo,
   listTodos,
   searchTodos,
   updateTodo,
@@ -36,6 +37,7 @@ import {
   DeleteTodoArgsBaseSchema,
   GetAreaTodosArgsSchema,
   GetProjectTodosArgsSchema,
+  GetTodoArgsSchema,
   ListAreasArgsSchema,
   ListProjectsArgsSchema,
   ListTagsArgsSchema,
@@ -125,6 +127,13 @@ export function createMcpServer(): McpServer {
       'update to several todos at once',
     UpdateTodoArgsBaseSchema.shape,
     mcpHandler(updateTodo),
+  );
+
+  server.tool(
+    'get_todo',
+    'Get one todo by id with all its fields: notes, deadline, when, tags, project, area, dates',
+    GetTodoArgsSchema.shape,
+    mcpHandler(getTodo),
   );
 
   server.tool(

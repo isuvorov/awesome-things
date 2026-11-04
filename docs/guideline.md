@@ -39,7 +39,8 @@ src/
 ├── config.ts             # appName, appVersion, appDescription, defaultPort
 ├── types.ts              # Zod schemas + inferred types
 ├── api/                  # Things3 operations (AppleScript)
-│   ├── todo-ops.ts       # createTodo, listTodos, completeTodo, cancelTodo, deleteTodo, updateTodo, searchTodos
+│   ├── todo-ops.ts       # createTodo, getTodo, listTodos, completeTodo, cancelTodo, deleteTodo, updateTodo, searchTodos
+│   ├── errors.ts         # NotFoundError, isNotFound — `handle()` turns it into a 404
 │   ├── when.ts           # Things' "When" field: schedule / evening / clear
 │   ├── url-scheme.ts     # things:/// fallback — token, reminders, checklist items
 │   ├── batch.ts          # runBatch — one todo op applied to an array of ids
@@ -61,6 +62,7 @@ src/
 │   ├── http.ts           # json, handle, body, ClientError, CORS headers
 │   ├── logger.ts         # Request box, ANSI colors, logError
 │   ├── mcp-http.ts       # MCP-over-HTTP: stateless transport per request
+│   ├── todo-page.ts      # /todo/{id} page: getTodoPage, todoPageResponse, escapeHtml, renderNotes
 │   └── port.ts           # probePort, APP_ID, MAX_PORT_ATTEMPTS
 ├── settings/             # User config file
 │   ├── schema.ts         # userConfigSchema, toEnvironment, configJsonSchema
@@ -72,9 +74,9 @@ src/
 │   └── parsers.ts        # AppleScript output parsing
 └── utils/
     ├── applescript.ts    # AppleScript execution + escaping
-    ├── auth.ts           # Token generation, Bearer / path-token checks
+    ├── auth.ts           # Token generation, Bearer / path-token checks, safeNextPath
     ├── create-server.ts  # Bun.serve / node:http wrapper with error handling
-    ├── mcp-server.ts     # MCP tool registration (21 tools)
+    ├── mcp-server.ts     # MCP tool registration (22 tools)
     ├── openapi.ts        # OpenAPI spec, Swagger UI, home page
     └── tunnel.ts         # Tunnel providers: localtunnel, ngrok, frp
 tests/
@@ -158,7 +160,7 @@ bun run release            # Build + test + semantic-release + npm publish
 - `capitalize(s)` — capitalizes first letter
 
 ### Operations (`api/*.ts`)
-21 operations grouped by domain. Each takes typed args validated by a Zod schema.
+22 operations grouped by domain. Each takes typed args validated by a Zod schema.
 
 **Completing is not deleting.** `complete_todo` moves a todo to the Logbook as *done* —
 using it to get rid of a mistake fills the Logbook with work nobody did. Three separate verbs:
@@ -170,6 +172,19 @@ using it to get rid of a mistake fills the Logbook with work nobody did. Three s
 | `deleteTodo` | `move ... to list "Trash"` | Trash |
 
 `deleteProject` trashes the project along with its todos — `removeProjectFromArea` only detaches it.
+
+### One todo by id (`getTodo`, `/todo/{id}`)
+`getTodo({ id })` reads every field AppleScript exposes — notes with their line breaks, deadline,
+When (`activation date`), tags, project, area (the project's when the todo has none), created /
+modified / completed. Fields are joined by `\x1f`, not a tab: notes hold tabs and newlines.
+The date formatter is an AppleScript handler, so it sits *before* the `tell` block — handlers are
+not allowed inside one. An unknown id is `-1728`, caught in the script and thrown as
+`NotFoundError`, which the HTTP layer answers with 404.
+
+`GET /todo/{id}` is the link to share: a server-rendered page with an *Open in Things* button
+(`things:///show?id=…`), `Cache-Control: no-store` and `noindex`. A browser without the cookie gets
+`303 → /auth?next=/todo/{id}` and lands back on the todo after signing in. The home page links every
+todo there.
 
 ### Batch (`api/batch.ts`)
 Every todo-targeting operation accepts `ids: string[]` next to `id` / `name`. `runBatch` applies the

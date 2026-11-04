@@ -21,7 +21,7 @@
 **📦 JS/TS API** — use Things3 as a fully-typed library <br/>
 **🔗 Built-in tunnels** — expose your Mac via localtunnel, ngrok or frp <br/>
 **🔐 Bearer-token auth** — protect remote access out of the box <br/>
-**✅ 21 operations** — todos, projects, tags, areas, move, delete & batch <br/>
+**✅ 22 operations** — todos, projects, tags, areas, move, delete & batch <br/>
 **🍏 AppleScript-native** — talks to Things3 directly, validated with Zod <br/>
 
 ---
@@ -210,7 +210,7 @@ things server --no-token           # disable auth (local use)
 things server --port 8080          # custom port
 ```
 
-The server also serves a home page at `/`, a health check at `/health`, **Swagger UI at `/api`**, and the raw OpenAPI spec at `/api/openapi.json`.
+The server also serves a home page at `/`, **a shareable page for every todo at `/todo/{id}`** (opens the sign-in form first if the browser has no session), a health check at `/health`, **Swagger UI at `/api`**, and the raw OpenAPI spec at `/api/openapi.json`.
 
 <details>
 <summary><strong>Endpoints</strong></summary>
@@ -224,6 +224,8 @@ The server also serves a home page at `/`, a health check at `/health`, **Swagge
 | `POST` | `/api/todos/cancel` | Cancel todo |
 | `POST` | `/api/todos/delete` | Delete todo (→ Trash) |
 | `GET` | `/api/todos/search?q=...` | Search todos |
+| `GET` | `/api/todos/{id}` | One todo with all its fields |
+| `GET` | `/todo/{id}` | Web page of one todo — the link to share |
 | `GET` | `/api/projects?area=...` | List projects |
 | `POST` | `/api/projects` | Create project |
 | `POST` | `/api/projects/delete` | Delete project (→ Trash) |
@@ -414,7 +416,7 @@ AppleScript is the only programmatic interface to Things3 on macOS. Each operati
 | `src/mcp.ts` | MCP server (stdio transport) |
 | `src/server.ts` | HTTP REST API + MCP-over-HTTP (`Bun.serve`) |
 | `src/cli.ts` | CLI (yargs) — `things` / `thi` / `awesome-things` |
-| `src/api/*.ts` | The 21 todo / project / area / list / move operations |
+| `src/api/*.ts` | The 22 todo / project / area / list / move operations |
 | `src/utils/applescript.ts` | `execute`, `tellThings`, `quoteString` helpers |
 | `src/utils/tunnel.ts` | localtunnel / ngrok / frp providers |
 | `src/utils/auth.ts` | Bearer-token resolution & checks |
@@ -497,6 +499,7 @@ Every todo function accepts `ids: string[]` instead of `id` to run as a batch.
 - `cancelTodo({ name?, id?, ids? })` — mark as cancelled (→ Logbook)
 - `deleteTodo({ name?, id?, ids? })` — delete (→ Trash)
 - `updateTodo({ name?, id?, ids?, new_name?, new_notes?, new_due_date?, new_when?, new_tags?, new_checklist? })` — update a todo
+- `getTodo({ id })` — one todo with notes, deadline, when, tags, project, area and dates
 - `searchTodos({ query })` — search todos by name
 - `createProject({ name, notes?, area?, todos? })` — create a project, optionally with its todos
 - `updateProject({ project_name, new_name?, new_notes?, new_due_date?, new_tags?, new_area? })` — update a project

@@ -1,10 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  FIELD_SEPARATOR,
   filterTodosByStatus,
   parseProjectLines,
   parseSearchLines,
   parseSimpleList,
   parseTodoColumns,
+  parseTodoDetails,
   parseTodoLines,
 } from '../src/tools/parsers.js';
 
@@ -280,5 +282,58 @@ describe('filterTodosByStatus', () => {
     const result = filterTodosByStatus(todos, 'completed');
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe('B');
+  });
+});
+
+describe('parseTodoDetails', () => {
+  const line = (...fields: string[]) => fields.join(FIELD_SEPARATOR);
+
+  test('returns null for empty output — the todo does not exist', () => {
+    expect(parseTodoDetails('')).toBeNull();
+    expect(parseTodoDetails('  \n')).toBeNull();
+  });
+
+  test('maps every field in script order', () => {
+    const todo = parseTodoDetails(
+      line(
+        'id1',
+        'Buy milk',
+        'open',
+        'note',
+        '2026-10-30',
+        '2026-10-25',
+        'shopping, errands',
+        'Home',
+        'Life',
+        '2026-10-01 09:05',
+        '2026-10-02 10:00',
+        '',
+      ),
+    );
+    expect(todo).toEqual({
+      id: 'id1',
+      name: 'Buy milk',
+      status: 'open',
+      notes: 'note',
+      dueDate: '2026-10-30',
+      when: '2026-10-25',
+      tags: 'shopping, errands',
+      project: 'Home',
+      area: 'Life',
+      created: '2026-10-01 09:05',
+      modified: '2026-10-02 10:00',
+      completed: '',
+    });
+  });
+
+  test('keeps tabs and newlines in notes, normalising CR line breaks', () => {
+    const todo = parseTodoDetails(line('id1', 'X', 'open', 'a\tb\rc\r\nd\ne'));
+    expect(todo?.notes).toBe('a\tb\nc\nd\ne');
+  });
+
+  test('fills missing trailing fields with empty strings', () => {
+    const todo = parseTodoDetails(line('id1', 'X'));
+    expect(todo?.area).toBe('');
+    expect(todo?.completed).toBe('');
   });
 });

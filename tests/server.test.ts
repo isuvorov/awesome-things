@@ -46,6 +46,30 @@ mock.module('../src/api/todo-ops.js', () => ({
       : { message: `Deleted todo "${args.name}" (moved to Trash)` },
   ),
   updateTodo: mock(async (args: { name: string }) => ({ message: `Updated todo: ${args.name}` })),
+  getTodo: mock(async (args: { id: string }) => {
+    if (args.id === 'missing') {
+      const err = new Error(`Todo not found: ${args.id}`);
+      err.name = 'NotFoundError';
+      throw err;
+    }
+    if (args.id === 'broken') throw new Error('Things3 is not running');
+    return {
+      todo: {
+        id: args.id,
+        name: 'Buy <script>milk</script>',
+        status: 'open',
+        notes: 'see https://example.com/a?b=1&c=2',
+        dueDate: '2026-10-30',
+        when: '',
+        tags: 'shopping, errands',
+        project: 'Home',
+        area: 'Life',
+        created: '2026-10-01 09:05',
+        modified: '',
+        completed: '',
+      },
+    };
+  }),
   searchTodos: mock(async (args: { query: string }) => {
     if (!returnData) return { query: args.query, results: [] };
     return {
@@ -495,6 +519,95 @@ describe('GET /api/areas/{name}/todos', () => {
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.area).toBe('My Life');
+  });
+});
+
+describe('GET /api/todos/{id}', () => {
+  test('returns the todo', async () => {
+    const res = await fetch(`${baseUrl}/api/todos/Sfs81KgRUmHWamcXUCBSVt`, {
+      headers: authHeaders(),
+    });
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.ok).toBe(true);
+    expect(data.todo.id).toBe('Sfs81KgRUmHWamcXUCBSVt');
+    expect(data.todo.area).toBe('Life');
+  });
+
+  test('answers 404 for an unknown id', async () => {
+    const res = await fetch(`${baseUrl}/api/todos/missing`, { headers: authHeaders() });
+    expect(res.status).toBe(404);
+    expect((await res.json()).ok).toBe(false);
+  });
+
+  test('requires auth', async () => {
+    const res = await fetch(`${baseUrl}/api/todos/Sfs81KgRUmHWamcXUCBSVt`);
+    expect(res.status).toBe(401);
+  });
+
+  test('search is still search, not an id', async () => {
+    const res = await fetch(`${baseUrl}/api/todos/search?q=milk`, { headers: authHeaders() });
+    const data = await res.json();
+    expect(data.query).toBe('milk');
+    expect(data.todo).toBeUndefined();
+  });
+});
+
+describe('GET /todo/{id} — the shareable web page', () => {
+  const cookie = `awesome_things_token=${TEST_TOKEN}`;
+
+  test('without the cookie, sends the browser to sign in and back', async () => {
+    const res = await fetch(`${baseUrl}/todo/Sfs81KgRUmHWamcXUCBSVt`, { redirect: 'manual' });
+    expect(res.status).toBe(303);
+    expect(res.headers.get('location')).toBe(
+      `/auth?next=${encodeURIComponent('/todo/Sfs81KgRUmHWamcXUCBSVt')}`,
+    );
+  });
+
+  test('signing in from that redirect lands back on the todo', async () => {
+    const res = await fetch(`${baseUrl}/auth`, {
+      method: 'POST',
+      redirect: 'manual',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        token: TEST_TOKEN,
+        next: '/todo/Sfs81KgRUmHWamcXUCBSVt',
+      }).toString(),
+    });
+    expect(res.headers.get('location')).toBe('/todo/Sfs81KgRUmHWamcXUCBSVt');
+  });
+
+  test('renders the todo as HTML, escaping what Things3 returned', async () => {
+    const res = await fetch(`${baseUrl}/todo/Sfs81KgRUmHWamcXUCBSVt`, {
+      headers: { Cookie: cookie },
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('text/html');
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    const html = await res.text();
+    expect(html).toContain('Buy &lt;script&gt;milk&lt;/script&gt;');
+    expect(html).not.toContain('<script>milk');
+    expect(html).toContain('things:///show?id=Sfs81KgRUmHWamcXUCBSVt');
+    expect(html).toContain('<a href="https://example.com/a?b=1&amp;c=2"');
+    expect(html).toContain('<span class="tag">errands</span>');
+  });
+
+  test('the bearer token works too', async () => {
+    const res = await fetch(`${baseUrl}/todo/Sfs81KgRUmHWamcXUCBSVt`, { headers: authHeaders() });
+    expect(res.status).toBe(200);
+  });
+
+  test('an unknown id is a 404 page, not JSON', async () => {
+    const res = await fetch(`${baseUrl}/todo/missing`, { headers: { Cookie: cookie } });
+    expect(res.status).toBe(404);
+    expect(res.headers.get('content-type')).toBe('text/html');
+    expect(await res.text()).toContain('Todo not found');
+  });
+
+  test('a Things3 failure is a 500 page with the reason', async () => {
+    const res = await fetch(`${baseUrl}/todo/broken`, { headers: { Cookie: cookie } });
+    expect(res.status).toBe(500);
+    expect(await res.text()).toContain('Things3 is not running');
   });
 });
 
@@ -976,6 +1089,23 @@ describe('browser auth', () => {
       body: new URLSearchParams({ token: TEST_TOKEN, next: 'https://evil.example' }).toString(),
     });
     expect(res.headers.get('location')).toBe('/');
+  });
+
+  test('refuses a protocol-relative next', async () => {
+    const res = await fetch(`${baseUrl}/auth`, {
+      method: 'POST',
+      redirect: 'manual',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ token: TEST_TOKEN, next: '//evil.example' }).toString(),
+    });
+    expect(res.headers.get('location')).toBe('/');
+  });
+
+  test('the sign-in form escapes next', async () => {
+    const next = encodeURIComponent('/x"><script>alert(1)</script>');
+    const html = await (await fetch(`${baseUrl}/auth?next=${next}`)).text();
+    expect(html).not.toContain('<script>alert(1)');
+    expect(html).toContain('&quot;&gt;&lt;script&gt;');
   });
 
   test('a token in the query string is no longer accepted', async () => {

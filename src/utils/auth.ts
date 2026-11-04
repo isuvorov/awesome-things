@@ -16,6 +16,15 @@ export function extractPathToken(pathname: string): string | null {
   return rest || null;
 }
 
+/**
+ * Where /auth may send the browser afterwards: a path on this server only. `//host` and
+ * `/\host` start with a slash too, yet browsers read both as another origin.
+ */
+export function safeNextPath(next: string | null | undefined): string {
+  if (!next || !next.startsWith('/') || next.startsWith('//') || next.includes('\\')) return '/';
+  return next;
+}
+
 export const AUTH_COOKIE = 'awesome_things_token';
 
 /** Reads one cookie without pulling in a parser — values here are base64url. */

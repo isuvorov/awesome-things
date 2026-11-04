@@ -1,4 +1,4 @@
-import type { ProjectItem, SearchResultItem, TodoItem } from '../types.js';
+import type { ProjectItem, SearchResultItem, TodoDetails, TodoItem } from '../types.js';
 
 /** Decode URL-encoded strings that Things3 sometimes returns for notes. */
 function decodeNotes(raw: string): string {
@@ -106,6 +106,43 @@ export function parseTodoColumns(output: string): TodoItem[] {
     });
   }
   return todos;
+}
+
+/** Separator of `getTodo` fields — notes hold tabs and newlines, never a unit separator. */
+export const FIELD_SEPARATOR = '\x1f';
+
+/** One todo, fields joined by FIELD_SEPARATOR in the order the getTodo script returns them. */
+export function parseTodoDetails(output: string): TodoDetails | null {
+  if (!output.trim()) return null;
+  const [
+    id,
+    name,
+    status,
+    notes,
+    dueDate,
+    when,
+    tags,
+    project,
+    area,
+    created,
+    modified,
+    completed,
+  ] = output.split(FIELD_SEPARATOR);
+  return {
+    id: id || '',
+    name: name || '',
+    status: status || '',
+    // AppleScript hands back classic-Mac "return" line breaks as often as linefeeds.
+    notes: (notes || '').replace(/\r\n?/g, '\n'),
+    dueDate: dueDate || '',
+    when: when || '',
+    tags: tags || '',
+    project: project || '',
+    area: area || '',
+    created: created || '',
+    modified: modified || '',
+    completed: completed || '',
+  };
 }
 
 /**

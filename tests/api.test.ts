@@ -77,6 +77,7 @@ import {
   completeTodo,
   createTodo,
   deleteTodo,
+  getTodo,
   listTodos,
   searchTodos,
   updateTodo,
@@ -341,6 +342,54 @@ describe('updateTodo', () => {
     expect(script).toContain('set name of to do named "Task" to "Renamed"');
     expect(script).toContain('set notes of to do named "Task" to "New notes"');
     expect(script).toContain('return id of to do named "Task"');
+  });
+});
+
+describe('getTodo', () => {
+  test('addresses the todo by id and parses every field', async () => {
+    resetExecute(
+      [
+        'Sfs81',
+        'Buy milk',
+        'open',
+        'line 1\nline 2',
+        '2026-10-30',
+        '2026-10-25',
+        'shopping',
+        'Home',
+        'Life',
+        '2026-10-01 09:05',
+        '2026-10-02 10:00',
+        '',
+      ].join('\x1f'),
+    );
+    const { todo } = await getTodo({ id: 'Sfs81' });
+    expect(executeCalls[0]).toContain('to do id "Sfs81"');
+    expect(todo.name).toBe('Buy milk');
+    expect(todo.notes).toBe('line 1\nline 2');
+    expect(todo.when).toBe('2026-10-25');
+    expect(todo.area).toBe('Life');
+  });
+
+  test('keeps the date handler outside the tell block — AppleScript rejects it inside', async () => {
+    resetExecute('id\x1fX');
+    await getTodo({ id: 'id' });
+    const script = executeCalls[0]!;
+    expect(script.indexOf('on fmtDate')).toBeLessThan(script.indexOf('tell application'));
+    expect(script).toContain('my fmtDate(due date of t, false)');
+  });
+
+  test('escapes the id like any other AppleScript string', async () => {
+    resetExecute('x\x1fX');
+    await getTodo({ id: 'a"b' });
+    expect(executeCalls[0]).toContain('to do id "a\\"b"');
+  });
+
+  test('throws NotFoundError when Things3 has no such todo', async () => {
+    resetExecute('');
+    const err = await getTodo({ id: 'nope' }).catch((e) => e);
+    expect(err.name).toBe('NotFoundError');
+    expect(err.message).toContain('nope');
   });
 });
 

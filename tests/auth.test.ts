@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'bun:test';
-import { checkAuth, extractPathToken, generateToken, resolveToken } from '../src/utils/auth.js';
+import {
+  checkAuth,
+  extractPathToken,
+  generateToken,
+  resolveToken,
+  safeNextPath,
+} from '../src/utils/auth.js';
 
 describe('resolveToken', () => {
   test('returns flag token when provided', () => {
@@ -126,5 +132,20 @@ describe('extractPathToken', () => {
 
   test('extracts simple string token', () => {
     expect(extractPathToken('/mcp/auth/my-secret-token')).toBe('my-secret-token');
+  });
+});
+
+describe('safeNextPath', () => {
+  test('keeps a local path with its query', () => {
+    expect(safeNextPath('/todo/Sfs81KgRUmHWamcXUCBSVt')).toBe('/todo/Sfs81KgRUmHWamcXUCBSVt');
+    expect(safeNextPath('/api?x=1')).toBe('/api?x=1');
+  });
+
+  test('falls back to / for anything that leaves this server', () => {
+    expect(safeNextPath('https://evil.example')).toBe('/');
+    expect(safeNextPath('//evil.example')).toBe('/');
+    expect(safeNextPath('/\\evil.example')).toBe('/');
+    expect(safeNextPath('')).toBe('/');
+    expect(safeNextPath(null)).toBe('/');
   });
 });

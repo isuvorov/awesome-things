@@ -1,5 +1,7 @@
 import { appName, appVersion } from '../config.js';
+import { escapeHtml } from '../server/todo-page.js';
 import { toolSchemas } from '../types.js';
+import { safeNextPath } from './auth.js';
 
 interface RouteMapping {
   method: string;
@@ -44,6 +46,13 @@ const routes: RouteMapping[] = [
     path: '/api/todos/delete',
     toolKey: 'delete_todo',
     summary: 'Delete a todo (move to Trash)',
+    tag: 'Todos',
+  },
+  {
+    method: 'get',
+    path: '/api/todos/{id}',
+    toolKey: 'get_todo',
+    summary: 'Get one todo by id',
     tag: 'Todos',
   },
   {
@@ -222,8 +231,13 @@ export function generateOpenApiSpec() {
       },
     };
 
+    const pathParams = (route.path.match(/\{(\w+)\}/g) || []).map((p) => p.slice(1, -1));
+
     if (route.method === 'get') {
-      const params = schemaToParameters(schema);
+      // A field that sits in the path is not a query parameter as well.
+      const params = schemaToParameters(schema).filter(
+        (p) => !pathParams.includes((p as { name: string }).name),
+      );
       if (params.length > 0) operation.parameters = params;
     } else {
       const hasProperties = Object.keys(schema.properties).length > 0;
@@ -231,17 +245,16 @@ export function generateOpenApiSpec() {
     }
 
     // Path parameters (e.g. {name})
-    if (route.path.includes('{')) {
-      const pathParams = route.path.match(/\{(\w+)\}/g) || [];
+    if (pathParams.length > 0) {
       const existing = (operation.parameters as object[] | undefined) || [];
-      for (const p of pathParams) {
-        const paramName = p.slice(1, -1);
+      for (const paramName of pathParams) {
+        const prop = (schema.properties as Record<string, { description?: string }>)[paramName];
         existing.push({
           name: paramName,
           in: 'path',
           required: true,
           schema: { type: 'string' },
-          description: `Name of the ${paramName}`,
+          description: prop?.description || `Name of the ${paramName}`,
         });
       }
       operation.parameters = existing;
@@ -295,6 +308,8 @@ export function getHomePage() {
     .check.done { background: #34c759; border-color: #34c759; }
     .info { flex: 1; min-width: 0; }
     .title { font-size: 15px; line-height: 1.4; }
+    .title a { color: inherit; text-decoration: none; }
+    .title a:hover { color: #0071e3; }
     .meta { font-size: 12px; color: #86868b; margin-top: 2px; }
     .meta span { margin-right: 10px; }
     .empty { text-align: center; padding: 40px; color: #86868b; }
@@ -350,7 +365,9 @@ export function getHomePage() {
           if (t.dueDate) meta += '<span>📅 ' + esc(t.dueDate) + '</span>';
           li.innerHTML =
             '<div class="check' + (isDone ? ' done' : '') + '"></div>' +
-            '<div class="info"><div class="title">' + esc(t.name || t.title || 'Untitled') + '</div>' +
+            '<div class="info"><div class="title">' +
+            (t.id ? '<a href="/todo/' + encodeURIComponent(t.id) + '">' + esc(t.name || 'Untitled') + '</a>' : esc(t.name || 'Untitled')) +
+            '</div>' +
             (meta ? '<div class="meta">' + meta + '</div>' : '') + '</div>';
           listEl.appendChild(li);
         }
@@ -395,7 +412,7 @@ export const FAVICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0
 
 /** Token form. Posts to /auth, which answers with an HttpOnly cookie. */
 export function getAuthPage(next = '/', error?: string) {
-  const safeNext = next.startsWith('/') ? next : '/';
+  const safeNext = safeNextPath(next);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -421,9 +438,9 @@ export function getAuthPage(next = '/', error?: string) {
   <div class="card">
     <h1>${appName}</h1>
     <p>Paste the token printed on server startup, or the value of <code>AWESOME_THINGS_TOKEN</code>.</p>
-    ${error ? `<div class="error">${error}</div>` : ''}
+    ${error ? `<div class="error">${escapeHtml(error)}</div>` : ''}
     <form method="POST" action="/auth">
-      <input type="hidden" name="next" value="${safeNext}">
+      <input type="hidden" name="next" value="${escapeHtml(safeNext)}">
       <input type="password" name="token" placeholder="Token" autofocus autocomplete="current-password">
       <button type="submit">Sign in</button>
     </form>

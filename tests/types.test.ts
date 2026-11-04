@@ -8,6 +8,7 @@ import {
   DeleteTodoArgsSchema,
   GetAreaTodosArgsSchema,
   GetProjectTodosArgsSchema,
+  GetTodoArgsSchema,
   ListProjectsArgsSchema,
   ListTodosArgsSchema,
   MoveTodoArgsSchema,
@@ -132,6 +133,19 @@ describe('UpdateTodoArgsSchema', () => {
     });
     expect(result.new_name).toBe('Updated name');
     expect(result.new_due_date).toBe('2026-04-01');
+  });
+});
+
+describe('GetTodoArgsSchema', () => {
+  test('accepts an id', () => {
+    expect(GetTodoArgsSchema.parse({ id: 'Sfs81KgRUmHWamcXUCBSVt' })).toEqual({
+      id: 'Sfs81KgRUmHWamcXUCBSVt',
+    });
+  });
+
+  test('rejects a missing or empty id', () => {
+    expect(() => GetTodoArgsSchema.parse({})).toThrow();
+    expect(() => GetTodoArgsSchema.parse({ id: '' })).toThrow();
   });
 });
 
@@ -293,9 +307,13 @@ describe('CreateProjectArgsSchema todos', () => {
 });
 
 describe('toolSchemas', () => {
-  test('has all 21 tool schemas', () => {
+  test('has all 22 tool schemas', () => {
     const tools = Object.keys(toolSchemas);
-    expect(tools).toHaveLength(21);
+    expect(tools).toHaveLength(22);
+  });
+
+  test('get_todo requires an id', () => {
+    expect(toolSchemas.get_todo.required).toEqual(['id']);
   });
 
   test('exposes delete and cancel next to complete', () => {

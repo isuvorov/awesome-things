@@ -1,10 +1,18 @@
-import { filterTodosByStatus, parseSearchLines, parseTodoColumns } from '../tools/parsers.js';
+import {
+  FIELD_SEPARATOR,
+  filterTodosByStatus,
+  parseSearchLines,
+  parseTodoColumns,
+  parseTodoDetails,
+} from '../tools/parsers.js';
 import type {
   ActionResult,
   CancelTodoArgs,
   CompleteTodoArgs,
   CreateTodoArgs,
   DeleteTodoArgs,
+  GetTodoArgs,
+  GetTodoResult,
   ListTodosArgs,
   ListTodosResult,
   SearchTodosArgs,
@@ -22,6 +30,7 @@ import {
   todoRef,
 } from '../utils/applescript.js';
 import { runBatch } from './batch.js';
+import { NotFoundError } from './errors.js';
 import { applyChecklist } from './url-scheme.js';
 import { applyWhen } from './when.js';
 
@@ -197,6 +206,68 @@ return idLine & "\n" & nameLine & "\n" & statusLine & "\n" & noteLine & "\n" & d
   const todos = parseTodoColumns(output);
   const filtered = filterTodosByStatus(todos, args.status);
   return { list: listName, todos: filtered };
+}
+
+/**
+ * AppleScript handlers cannot live inside a `tell` block, so this one is prepended to
+ * the script. Dates come out as YYYY-MM-DD (plus HH:MM), never the locale's date string.
+ */
+const FORMAT_DATE_HANDLER = `on fmtDate(d, withTime)
+  if d is missing value then return ""
+  set y to year of d as string
+  set m to month of d as integer
+  if m < 10 then set m to "0" & m
+  set dd to day of d
+  if dd < 10 then set dd to "0" & dd
+  set out to y & "-" & m & "-" & dd
+  if withTime then
+    set hh to (time of d) div 3600
+    if hh < 10 then set hh to "0" & hh
+    set mm to ((time of d) mod 3600) div 60
+    if mm < 10 then set mm to "0" & mm
+    set out to out & " " & hh & ":" & mm
+  end if
+  return out
+end fmtDate`;
+
+/** One todo by id, with every field AppleScript exposes — the web page and get_todo use it. */
+export async function getTodo(args: GetTodoArgs): Promise<GetTodoResult> {
+  const script = `${FORMAT_DATE_HANDLER}
+${tellThings(`
+try
+  set t to to do id ${quoteString(args.id)}
+  set todoName to name of t
+on error number -1728
+  return ""
+end try
+set todoId to id of t
+set todoStatus to status of t as string
+set todoNotes to notes of t
+set dueStr to my fmtDate(due date of t, false)
+set whenStr to my fmtDate(activation date of t, false)
+set createdStr to my fmtDate(creation date of t, true)
+set modifiedStr to my fmtDate(modification date of t, true)
+set completedStr to my fmtDate(completion date of t, true)
+set todoTags to tag names of t
+set projName to ""
+try
+  set projName to name of project of t
+end try
+set areaName to ""
+try
+  set areaName to name of area of t
+end try
+if areaName is "" and projName is not "" then
+  try
+    set areaName to name of area of project of t
+  end try
+end if
+set sep to character id ${FIELD_SEPARATOR.charCodeAt(0)}
+return todoId & sep & todoName & sep & todoStatus & sep & todoNotes & sep & dueStr & sep & whenStr & sep & todoTags & sep & projName & sep & areaName & sep & createdStr & sep & modifiedStr & sep & completedStr`)}`;
+
+  const todo = parseTodoDetails(await execute(script));
+  if (!todo) throw new NotFoundError(`Todo not found: ${args.id}`);
+  return { todo };
 }
 
 export async function completeTodo(args: CompleteTodoArgs): Promise<ActionResult> {

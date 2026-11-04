@@ -1,4 +1,5 @@
 export { getAreaTodos } from './api/area-ops.js';
+export { isNotFound, NotFoundError } from './api/errors.js';
 export { listAreas, listTags } from './api/list-ops.js';
 export {
   moveProjectToArea,
@@ -20,6 +21,7 @@ export {
   completeTodo,
   createTodo,
   deleteTodo,
+  getTodo,
   listTodos,
   searchTodos,
   updateTodo,
@@ -37,6 +39,8 @@ export type {
   GetAreaTodosResult,
   GetProjectTodosArgs,
   GetProjectTodosResult,
+  GetTodoArgs,
+  GetTodoResult,
   ListAreasResult,
   ListProjectsArgs,
   ListProjectsResult,
@@ -54,6 +58,7 @@ export type {
   SearchResultItem,
   SearchTodosArgs,
   SearchTodosResult,
+  TodoDetails,
   TodoItem,
   UpdateProjectArgs,
   UpdateTodoArgs,

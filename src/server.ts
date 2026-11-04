@@ -9,6 +9,7 @@ import {
   deleteTodo,
   getAreaTodos,
   getProjectTodos,
+  getTodo,
   listAreas,
   listProjects,
   listTags,
@@ -39,8 +40,15 @@ import {
 } from './server/logger.js';
 import { handleMcpRequest, type McpLogSink } from './server/mcp-http.js';
 import { APP_ID, MAX_PORT_ATTEMPTS, probePort } from './server/port.js';
+import { parseTodoPagePath, todoPageResponse } from './server/todo-page.js';
 import { loadUserConfig } from './settings/load.js';
-import { authCookieHeader, checkAuth, extractPathToken, resolveToken } from './utils/auth.js';
+import {
+  authCookieHeader,
+  checkAuth,
+  extractPathToken,
+  resolveToken,
+  safeNextPath,
+} from './utils/auth.js';
 import { createServer } from './utils/create-server.js';
 import {
   FAVICON_SVG,
@@ -118,8 +126,7 @@ async function handleRoute(
 
   if (pathname === '/auth' && method === 'POST') {
     const form = new URLSearchParams(await req.text());
-    const next = form.get('next') || '/';
-    const safeNext = next.startsWith('/') ? next : '/';
+    const safeNext = safeNextPath(form.get('next'));
     if (token && form.get('token') !== token) {
       return new Response(getAuthPage(safeNext, 'Wrong token'), {
         status: 401,
@@ -147,6 +154,20 @@ async function handleRoute(
       return json({ ok: false, error: 'Unauthorized' }, 401);
     }
     return handleMcpRequest(req, mcpLog);
+  }
+
+  // ── Todo page (/todo/{id}) ───────────────────────────────
+  // A shared link is opened by a browser, which has no Authorization header: without the
+  // cookie it goes to the token form and comes back here, never to a bare JSON 401.
+  const todoPageId = method === 'GET' ? parseTodoPagePath(pathname) : null;
+  if (todoPageId !== null) {
+    if (checkAuth(req, token)) {
+      return new Response(null, {
+        status: 303,
+        headers: { Location: `/auth?next=${encodeURIComponent(pathname)}` },
+      });
+    }
+    return todoPageResponse(todoPageId);
   }
 
   // ── Auth ──────────────────────────────────────────────────
@@ -200,6 +221,13 @@ async function handleRoute(
   if (pathname === '/api/todos/search' && method === 'GET') {
     const q = url.searchParams.get('q') || '';
     return handle(() => searchTodos({ query: q }));
+  }
+
+  // After the fixed /api/todos/* routes, so `search` is never taken for an id.
+  const todoMatch = pathname.match(/^\/api\/todos\/([^/]+)$/);
+  if (todoMatch && method === 'GET') {
+    const id = decodeURIComponent(todoMatch[1]!);
+    return handle(() => getTodo({ id }));
   }
 
   // ── Projects ──────────────────────────────────────────────

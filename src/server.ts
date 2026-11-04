@@ -28,7 +28,7 @@ import { appVersion, defaultPort } from './config.js';
 import { logFiles } from './daemon/logs.js';
 import { errorMessage } from './server/errors.js';
 import { installProcessGuards } from './server/guards.js';
-import { body, handle, isProbePath, json, MCP_CORS_HEADERS } from './server/http.js';
+import { body, ClientError, handle, isProbePath, json, MCP_CORS_HEADERS } from './server/http.js';
 import {
   isInteractive,
   type LogExtra,
@@ -220,7 +220,10 @@ async function handleRoute(
 
   if (pathname === '/api/todos/search' && method === 'GET') {
     const q = url.searchParams.get('q') || '';
-    return handle(() => searchTodos({ query: q }));
+    return handle(async () => {
+      if (!q.trim()) throw new ClientError('Query parameter q must not be blank');
+      return searchTodos({ query: q });
+    });
   }
 
   // After the fixed /api/todos/* routes, so `search` is never taken for an id.
@@ -251,9 +254,14 @@ async function handleRoute(
 
   const projectTodosMatch = pathname.match(/^\/api\/projects\/(.+)\/todos$/);
   if (projectTodosMatch && method === 'GET') {
+    // The segment is a name or an id — getProjectTodos tries names first, then ids.
+    // `?id=` wins over the segment: OpenAPI advertises it from the tool schema.
     const projectName = decodeURIComponent(projectTodosMatch[1]!);
+    const id = url.searchParams.get('id') || undefined;
     const status = url.searchParams.get('status') as any;
-    return handle(() => getProjectTodos({ project_name: projectName, status }));
+    return handle(() =>
+      getProjectTodos(id ? { id, status } : { project_name: projectName, status }),
+    );
   }
 
   // ── Tags & Areas ──────────────────────────────────────────

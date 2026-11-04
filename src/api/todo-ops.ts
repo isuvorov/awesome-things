@@ -386,6 +386,8 @@ export async function updateTodo(args: UpdateTodoArgs): Promise<ActionResult> {
 }
 
 export async function searchTodos(args: SearchTodosArgs): Promise<SearchTodosResult> {
+  // A blank query matches every todo, and the per-todo loop below then outlives any timeout.
+  if (!args.query.trim()) throw new Error('Search query must not be blank');
   const script = tellThings(`
 set allTodos to {}
 set searchQuery to ${quoteString(args.query)}

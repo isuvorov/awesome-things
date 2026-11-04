@@ -226,10 +226,10 @@ The server also serves a home page at `/`, **a shareable page for every todo at 
 | `GET` | `/api/todos/search?q=...` | Search todos |
 | `GET` | `/api/todos/{id}` | One todo with all its fields |
 | `GET` | `/todo/{id}` | Web page of one todo — the link to share |
-| `GET` | `/api/projects?area=...` | List projects |
+| `GET` | `/api/projects?area=...` | List projects (with area and tags) |
 | `POST` | `/api/projects` | Create project |
 | `POST` | `/api/projects/delete` | Delete project (→ Trash) |
-| `GET` | `/api/projects/:name/todos` | Project todos |
+| `GET` | `/api/projects/:name/todos?id=...` | Project todos — by name or id; a shared name is a 409 |
 | `GET` | `/api/tags` | All tags |
 | `GET` | `/api/areas` | All areas |
 | `GET` | `/api/areas/:name/todos` | Todos directly in an area |

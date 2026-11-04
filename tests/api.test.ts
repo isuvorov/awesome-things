@@ -432,6 +432,12 @@ describe('searchTodos', () => {
     });
   });
 
+  test('refuses a blank query before reaching Things3', async () => {
+    resetExecute('');
+    await expect(searchTodos({ query: ' ' })).rejects.toThrow('must not be blank');
+    expect(executeCalls).toHaveLength(0);
+  });
+
   test('script contains search query and fetches id', async () => {
     resetExecute('');
     await searchTodos({ query: 'meeting' });
@@ -569,7 +575,15 @@ describe('listProjects', () => {
       status: 'open',
       notes: 'notes1',
       area: 'Work',
+      tags: '',
     });
+  });
+
+  test('returns project tags', async () => {
+    resetExecute('pid1\tProj1\topen\t\tWork\t🎯, ai');
+    const result = await listProjects({});
+    expect(result.projects[0]!.tags).toBe('🎯, ai');
+    expect(executeCalls[0]).toContain('set allTags to tag names of every project');
   });
 
   test('keeps a project whose notes contain commas in one piece', async () => {
@@ -584,7 +598,7 @@ describe('listProjects', () => {
     const result = await listProjects({ area: 'Work' });
     expect(result.area).toBe('Work');
     expect(result.projects).toEqual([
-      { id: 'pid1', name: 'Proj1', status: 'open', notes: 'notes1' },
+      { id: 'pid1', name: 'Proj1', status: 'open', notes: 'notes1', tags: '' },
     ]);
   });
 
@@ -602,15 +616,28 @@ describe('listProjects', () => {
 });
 
 describe('getProjectTodos', () => {
+  // The first execute() is listProjects, used to turn the name into an id.
+  const PROJECTS = [
+    'pid1\tProj\topen\t\tWork\t',
+    'pid2\tMy Project\topen\t\t\t',
+    'pid3\tP\topen\t\t\t',
+    'pid4\tGroceries\topen\t\t\t',
+    'up1\tРАЗОБРАТЬ\topen\t\t\t',
+    'low1\tРазобрать\topen\t\tInbox zero\t',
+    'h1\tЗдоровье\topen\t\tРазобрать\t',
+    'h2\tЗдоровье\topen\t\tLife\t',
+  ].join('\n');
+
   test('returns empty when output is empty', async () => {
-    resetExecute('');
+    resetExecuteMulti(PROJECTS, '');
     const result = await getProjectTodos({ project_name: 'Proj' });
     expect(result.project).toBe('Proj');
+    expect(result.id).toBe('pid1');
     expect(result.todos).toEqual([]);
   });
 
   test('parses project todos with id', async () => {
-    resetExecute('tid1\tTask A\topen\tnote\t2024-06-01\ttag1');
+    resetExecuteMulti(PROJECTS, 'tid1\tTask A\topen\tnote\t2024-06-01\ttag1');
     const result = await getProjectTodos({ project_name: 'My Project' });
     expect(result.todos).toHaveLength(1);
     expect(result.todos[0]).toEqual({
@@ -625,17 +652,59 @@ describe('getProjectTodos', () => {
   });
 
   test('filters by status', async () => {
-    resetExecute('tid2\tA\topen\t\t\t\ntid3\tB\tcompleted\t\t\t');
+    resetExecuteMulti(PROJECTS, 'tid2\tA\topen\t\t\t\ntid3\tB\tcompleted\t\t\t');
     const result = await getProjectTodos({ project_name: 'P', status: 'completed' });
     expect(result.todos).toHaveLength(1);
     expect(result.todos[0].name).toBe('B');
   });
 
-  test('script references project name and fetches ids', async () => {
-    resetExecute('');
+  test('addresses the project by id, never by name', async () => {
+    resetExecuteMulti(PROJECTS, '');
     await getProjectTodos({ project_name: 'Groceries' });
-    expect(executeCalls[0]).toContain('every to do of project "Groceries"');
-    expect(executeCalls[0]).toContain('set allIds to id of');
+    expect(executeCalls[1]).toContain('every to do of project id "pid4"');
+    expect(executeCalls[1]).not.toContain('project "Groceries"');
+    expect(executeCalls[1]).toContain('set allIds to id of');
+  });
+
+  test('an exact-case name wins over a case-insensitive twin', async () => {
+    resetExecuteMulti(PROJECTS, '');
+    expect((await getProjectTodos({ project_name: 'РАЗОБРАТЬ' })).id).toBe('up1');
+    resetExecuteMulti(PROJECTS, '');
+    expect((await getProjectTodos({ project_name: 'Разобрать' })).id).toBe('low1');
+  });
+
+  test('a name that only matches ignoring case resolves when unique', async () => {
+    resetExecuteMulti(PROJECTS, '');
+    expect((await getProjectTodos({ project_name: 'groceries' })).id).toBe('pid4');
+  });
+
+  test('two projects with one name are an error listing both ids', async () => {
+    resetExecuteMulti(PROJECTS, '');
+    const err = await getProjectTodos({ project_name: 'Здоровье' }).catch((e) => e);
+    expect(err.name).toBe('AmbiguousError');
+    expect(err.message).toContain('h1');
+    expect(err.message).toContain('h2');
+    expect(err.message).toContain('area "Life"');
+  });
+
+  test('id skips the name lookup', async () => {
+    resetExecute('');
+    const result = await getProjectTodos({ id: 'h2' });
+    expect(executeCalls).toHaveLength(1);
+    expect(executeCalls[0]).toContain('every to do of project id "h2"');
+    expect(result.id).toBe('h2');
+  });
+
+  test('a name that matches nothing is tried as an id', async () => {
+    resetExecuteMulti(PROJECTS, '');
+    expect((await getProjectTodos({ project_name: 'h2' })).id).toBe('h2');
+  });
+
+  test('an unknown project is NotFoundError', async () => {
+    resetExecuteMulti(PROJECTS);
+    const err = await getProjectTodos({ project_name: 'Nope' }).catch((e) => e);
+    expect(err.name).toBe('NotFoundError');
+    expect(executeCalls).toHaveLength(1);
   });
 });
 

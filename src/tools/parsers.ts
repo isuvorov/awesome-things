@@ -49,6 +49,7 @@ export function parseProjectLines(output: string, withArea: boolean): ProjectIte
       };
       if (withArea) {
         item.area = (parts[4] || '').replace(/^Area:\s*/, '');
+        item.tags = parts[5] || '';
       }
       return item;
     });

@@ -162,14 +162,20 @@ describe('parseProjectLines', () => {
   test('parses projects with area', () => {
     const result = parseProjectLines('pid1\tMy Project\topen\tnotes\tWork', true);
     expect(result).toEqual([
-      { id: 'pid1', name: 'My Project', status: 'open', notes: 'notes', area: 'Work' },
+      { id: 'pid1', name: 'My Project', status: 'open', notes: 'notes', area: 'Work', tags: '' },
     ]);
+  });
+
+  test('parses project tags after the area', () => {
+    const result = parseProjectLines('pid1\tMy Project\topen\tnotes\tWork\t🎯, ai', true);
+    expect(result[0]!.tags).toBe('🎯, ai');
+    expect(result[0]!.area).toBe('Work');
   });
 
   test('parses projects with empty area', () => {
     const result = parseProjectLines('pid1\tMy Project\topen\tnotes\t', true);
     expect(result).toEqual([
-      { id: 'pid1', name: 'My Project', status: 'open', notes: 'notes', area: '' },
+      { id: 'pid1', name: 'My Project', status: 'open', notes: 'notes', area: '', tags: '' },
     ]);
   });
 });

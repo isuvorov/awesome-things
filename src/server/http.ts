@@ -1,4 +1,4 @@
-import { isNotFound } from '../api/errors.js';
+import { isAmbiguous, isNotFound } from '../api/errors.js';
 import { errorMessage } from './errors.js';
 import { logError } from './logger.js';
 
@@ -42,7 +42,8 @@ export async function handle(fn: () => Promise<any>) {
     return json({ ok: true, ...result });
   } catch (err) {
     // Anything can be thrown — including `undefined`, so never touch `.message` directly.
-    const status = err instanceof ClientError ? 400 : isNotFound(err) ? 404 : 500;
+    const status =
+      err instanceof ClientError ? 400 : isNotFound(err) ? 404 : isAmbiguous(err) ? 409 : 500;
     if (status === 500) logError('API handler failed', err);
     return json({ ok: false, error: errorMessage(err) }, status);
   }

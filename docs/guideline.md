@@ -40,7 +40,7 @@ src/
 ├── types.ts              # Zod schemas + inferred types
 ├── api/                  # Things3 operations (AppleScript)
 │   ├── todo-ops.ts       # createTodo, getTodo, listTodos, completeTodo, cancelTodo, deleteTodo, updateTodo, searchTodos
-│   ├── errors.ts         # NotFoundError, isNotFound — `handle()` turns it into a 404
+│   ├── errors.ts         # NotFoundError → 404, AmbiguousError → 409 in `handle()`
 │   ├── when.ts           # Things' "When" field: schedule / evening / clear
 │   ├── url-scheme.ts     # things:/// fallback — token, reminders, checklist items
 │   ├── batch.ts          # runBatch — one todo op applied to an array of ids
@@ -185,6 +185,17 @@ not allowed inside one. An unknown id is `-1728`, caught in the script and throw
 (`things:///show?id=…`), `Cache-Control: no-store` and `noindex`. A browser without the cookie gets
 `303 → /auth?next=/todo/{id}` and lands back on the todo after signing in. The home page links every
 todo there.
+
+### Projects by name (`resolveProjectId`)
+`project "X"` in AppleScript compares names case-insensitively and takes the first hit: «РАЗОБРАТЬ»
+reads «Разобрать», and the second of two projects called «Здоровье» is unreachable.
+`getProjectTodos` therefore resolves the name in JS over `listProjects()` — exact case first, then
+case-insensitive, then the name as an id — and talks to Things3 only through `project id "…"`.
+Several candidates throw `AmbiguousError` (HTTP 409) listing their ids and areas; pass `id` then.
+`listProjects` returns each project's `tags` next to its `area`.
+
+`search_todos` refuses a blank query: `" "` matches every todo and the per-todo loop outlives any
+timeout.
 
 ### Batch (`api/batch.ts`)
 Every todo-targeting operation accepts `ids: string[]` next to `id` / `name`. `runBatch` applies the

@@ -96,7 +96,13 @@ mock.module('../src/api/project-ops.js', () => ({
       projects: [{ name: 'My Project', status: 'open', notes: 'notes', area: 'Work' }],
     };
   }),
-  getProjectTodos: mock(async (args: { project_name: string }) => {
+  getProjectTodos: mock(async (args: { project_name?: string; id?: string }) => {
+    if (args.id) return { project: args.id, id: args.id, todos: [] };
+    if (args.project_name === 'Twin') {
+      const err = new Error('2 projects match "Twin" — pass the id of one: a; b');
+      err.name = 'AmbiguousError';
+      throw err;
+    }
     if (!returnData) return { project: args.project_name, todos: [] };
     return {
       project: args.project_name,
@@ -630,6 +636,12 @@ describe('GET /api/todos/search', () => {
     });
   });
 
+  test('a blank query is a 400, not a timeout', async () => {
+    const res = await fetch(`${baseUrl}/api/todos/search?q=%20`, { headers: authHeaders() });
+    expect(res.status).toBe(400);
+    expect((await res.json()).ok).toBe(false);
+  });
+
   test('returns empty results for no matches', async () => {
     const res = await fetch(`${baseUrl}/api/todos/search?q=nonexistent`, {
       headers: authHeaders(),
@@ -712,6 +724,22 @@ describe('GET /api/projects/:name/todos', () => {
     expect(data.project).toBe('My Project');
     expect(Array.isArray(data.todos)).toBe(true);
     expect(data.todos[0].name).toBe('Task A');
+  });
+
+  test('?id= picks the project by id', async () => {
+    const res = await fetch(`${baseUrl}/api/projects/Twin/todos?id=abc`, {
+      headers: authHeaders(),
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json()).id).toBe('abc');
+  });
+
+  test('an ambiguous name answers 409 with the candidates', async () => {
+    const res = await fetch(`${baseUrl}/api/projects/Twin/todos`, { headers: authHeaders() });
+    expect(res.status).toBe(409);
+    const data = await res.json();
+    expect(data.ok).toBe(false);
+    expect(data.error).toContain('pass the id');
   });
 });
 

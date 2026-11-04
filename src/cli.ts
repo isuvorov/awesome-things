@@ -668,7 +668,7 @@ yargs(hideBin(process.argv))
               .positional('project', {
                 type: 'string',
                 demandOption: true,
-                describe: 'Project name',
+                describe: 'Project name (exact case wins) or id',
               })
               .option('status', {
                 choices: STATUS_CHOICES,

@@ -82,6 +82,8 @@ export interface ProjectItem {
   status: string;
   notes: string;
   area?: string;
+  /** Comma-joined, as Things3 returns `tag names` — same shape as TodoItem.tags. */
+  tags?: string;
 }
 
 export interface ListProjectsResult {
@@ -91,6 +93,7 @@ export interface ListProjectsResult {
 
 export interface GetProjectTodosResult {
   project: string;
+  id?: string;
   todos: TodoItem[];
 }
 
@@ -218,7 +221,11 @@ export const GetTodoArgsSchema = z.object({
 export type GetTodoArgs = z.infer<typeof GetTodoArgsSchema>;
 
 export const SearchTodosArgsSchema = z.object({
-  query: z.string().describe('Search query to find todos by name'),
+  // A blank query matches every todo and times out — refuse it up front.
+  query: z
+    .string()
+    .refine((q) => q.trim().length > 0, { message: 'query must not be blank' })
+    .describe('Search query to find todos by name'),
 });
 export type SearchTodosArgs = z.infer<typeof SearchTodosArgsSchema>;
 
@@ -264,12 +271,23 @@ export const ListProjectsArgsSchema = z.object({
 });
 export type ListProjectsArgs = z.infer<typeof ListProjectsArgsSchema>;
 
-export const GetProjectTodosArgsSchema = z.object({
-  project_name: z.string().describe('Name of the project'),
+export const GetProjectTodosArgsBaseSchema = z.object({
+  id: z
+    .string()
+    .optional()
+    .describe('ID of the project — the only way to pick one of two projects sharing a name'),
+  project_name: z
+    .string()
+    .optional()
+    .describe('Name of the project; an exact-case match wins, an ambiguous name is an error'),
   status: lowerEnum(['open', 'completed', 'all'])
     .optional()
     .describe('Filter by status (defaults to all)'),
 });
+export const GetProjectTodosArgsSchema = GetProjectTodosArgsBaseSchema.refine(
+  (data) => data.id || data.project_name,
+  { message: 'Either id or project_name must be provided' },
+);
 export type GetProjectTodosArgs = z.infer<typeof GetProjectTodosArgsSchema>;
 
 export const GetAreaTodosArgsSchema = z.object({
@@ -502,7 +520,11 @@ export const toolSchemas = {
   search_todos: {
     type: 'object' as const,
     properties: {
-      query: { type: 'string', description: 'Search query to find todos by name' },
+      query: {
+        type: 'string',
+        pattern: '\\S',
+        description: 'Search query to find todos by name',
+      },
     },
     required: ['query'],
   },
@@ -581,14 +603,18 @@ export const toolSchemas = {
   get_project_todos: {
     type: 'object' as const,
     properties: {
-      project_name: { type: 'string', description: 'Name of the project' },
+      id: { type: 'string', description: 'ID of the project' },
+      project_name: {
+        type: 'string',
+        description: 'Name of the project; an exact-case match wins, an ambiguous name is an error',
+      },
       status: {
         type: 'string',
         enum: ['open', 'completed', 'all'],
         description: 'Filter by status (defaults to all)',
       },
     },
-    required: ['project_name'],
+    required: [] as string[],
   },
   get_area_todos: {
     type: 'object' as const,

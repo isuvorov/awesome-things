@@ -16,6 +16,7 @@ import {
   quoteString,
   tellThings,
 } from '../utils/applescript.js';
+import { AmbiguousError, NotFoundError } from './errors.js';
 import { createTodo } from './todo-ops.js';
 
 export async function createProject(args: CreateProjectArgs): Promise<ActionResult> {
@@ -151,6 +152,7 @@ set allIds to id of every project
 set allNames to name of every project
 set allStatuses to status of every project
 set allNotes to notes of every project
+set allTags to tag names of every project
 set allAreas to {}
 try
   set allAreas to area of every project
@@ -179,7 +181,12 @@ repeat with i from 1 to projCount
       end try
     end if
   end if
-  set end of output to (item i of allIds) & tab & (item i of allNames) & tab & (item i of allStatuses as string) & tab & nn & tab & areaName
+  set tt to item i of allTags
+  set AppleScript's text item delimiters to tab
+  set tp to text items of tt
+  set AppleScript's text item delimiters to " "
+  set tt to tp as string
+  set end of output to (item i of allIds) & tab & (item i of allNames) & tab & (item i of allStatuses as string) & tab & nn & tab & areaName & tab & tt
 end repeat
 set AppleScript's text item delimiters to linefeed
 return output as string`);
@@ -195,8 +202,39 @@ return output as string`);
   return { area: args.area, projects: filtered };
 }
 
+/**
+ * Picks the id of the project a name means. `project "X"` cannot be trusted for
+ * this: AppleScript compares names case-insensitively and takes the first hit, so
+ * "РАЗОБРАТЬ" reads "Разобрать", and the second of two equal names is unreachable.
+ * An exact-case match wins, then a case-insensitive one, then the name as an id.
+ */
+export async function resolveProjectId(name: string): Promise<string> {
+  const { projects } = await listProjects({});
+  const lower = name.toLowerCase();
+  const exact = projects.filter((p) => p.name === name);
+  const candidates =
+    exact.length > 0 ? exact : projects.filter((p) => p.name.toLowerCase() === lower);
+
+  if (candidates.length === 1) return candidates[0]!.id;
+  if (candidates.length > 1) {
+    const list = candidates
+      .map((p) => `${p.id} "${p.name}"${p.area ? ` in area "${p.area}"` : ''}`)
+      .join('; ');
+    throw new AmbiguousError(
+      `${candidates.length} projects match "${name}" — pass the id of one: ${list}`,
+    );
+  }
+
+  const byId = projects.find((p) => p.id === name);
+  if (byId) return byId.id;
+  throw new NotFoundError(`Project not found: "${name}"`);
+}
+
 export async function getProjectTodos(args: GetProjectTodosArgs): Promise<GetProjectTodosResult> {
-  const projRef = `every to do of project ${quoteString(args.project_name)}`;
+  const label = args.project_name ?? args.id;
+  if (!label) throw new Error('Either id or project_name must be provided');
+  const projectId = args.id ?? (await resolveProjectId(label));
+  const projRef = `every to do of project id ${quoteString(projectId)}`;
   const script = tellThings(`
 set todoCount to count of ${projRef}
 if todoCount is 0 then return ""
@@ -247,5 +285,5 @@ return output as string`);
   const output = await execute(script);
   const todos = parseTodoLines(output);
   const filtered = filterTodosByStatus(todos, args.status);
-  return { project: args.project_name, todos: filtered };
+  return { project: label, id: projectId, todos: filtered };
 }

@@ -18,6 +18,14 @@ function truncate(s: string, max: number): string {
   return `${s.slice(0, max - 1)}\u2026`;
 }
 
+/** Things3's comma-joined `tag names` → `#a #b`. */
+function hashTags(tags: string): string {
+  return tags
+    .split(',')
+    .map((tag) => `#${tag.trim()}`)
+    .join(' ');
+}
+
 function firstLine(s: string, max = 80): string {
   const line = s.split('\n')[0].trim();
   return truncate(line, max);
@@ -107,6 +115,7 @@ const prettyFormatters: Formatters = {
     const lines = result.projects.map((p) => {
       const parts = [`  ${cyan('\u25B8')}  ${bold(p.name)}`];
       if (p.area !== undefined) parts[0] += `  ${dim(p.area)}`;
+      if (p.tags) parts[0] += `  ${cyan(hashTags(p.tags))}`;
       if (p.notes) parts.push(`     ${dim(firstLine(p.notes))}`);
       return parts.join('\n');
     });
@@ -266,6 +275,7 @@ const plainFormatters: Formatters = {
     const lines = result.projects.map((p) => {
       const parts = [p.name];
       if (p.area !== undefined) parts.push(`[${p.area}]`);
+      if (p.tags) parts.push(hashTags(p.tags));
       const line = [parts.join('  ')];
       if (p.notes) line.push(`    ${firstLine(p.notes)}`);
       return line.join('\n');

@@ -36,7 +36,7 @@ import {
   DeleteProjectArgsBaseSchema,
   DeleteTodoArgsBaseSchema,
   GetAreaTodosArgsSchema,
-  GetProjectTodosArgsSchema,
+  GetProjectTodosArgsBaseSchema,
   GetTodoArgsSchema,
   ListAreasArgsSchema,
   ListProjectsArgsSchema,
@@ -169,15 +169,16 @@ export function createMcpServer(): McpServer {
 
   server.tool(
     'list_projects',
-    'List projects in Things3, optionally filtered by area',
+    'List projects in Things3 with their area and tags, optionally filtered by area',
     ListProjectsArgsSchema.shape,
     mcpHandler(listProjects),
   );
 
   server.tool(
     'get_project_todos',
-    'Get todos within a specific project in Things3',
-    GetProjectTodosArgsSchema.shape,
+    'Get todos within a specific project in Things3. Target it by id or by project_name; ' +
+      'a name shared by several projects returns an error listing their ids',
+    GetProjectTodosArgsBaseSchema.shape,
     mcpHandler(getProjectTodos),
   );
 

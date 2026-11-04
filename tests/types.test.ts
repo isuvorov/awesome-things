@@ -154,6 +154,15 @@ describe('SearchTodosArgsSchema', () => {
     const result = SearchTodosArgsSchema.parse({ query: 'meeting' });
     expect(result.query).toBe('meeting');
   });
+
+  test('rejects a blank query — it matches every todo and times out', () => {
+    expect(() => SearchTodosArgsSchema.parse({ query: ' ' })).toThrow();
+    expect(() => SearchTodosArgsSchema.parse({ query: '' })).toThrow();
+  });
+
+  test('keeps inner spaces', () => {
+    expect(SearchTodosArgsSchema.parse({ query: 'MT 200' }).query).toBe('MT 200');
+  });
 });
 
 describe('CreateProjectArgsSchema', () => {
@@ -205,6 +214,14 @@ describe('GetProjectTodosArgsSchema', () => {
   test('accepts valid project name', () => {
     const result = GetProjectTodosArgsSchema.parse({ project_name: 'Q1' });
     expect(result.project_name).toBe('Q1');
+  });
+
+  test('accepts an id instead of a name', () => {
+    expect(GetProjectTodosArgsSchema.parse({ id: 'abc' }).id).toBe('abc');
+  });
+
+  test('rejects neither id nor name', () => {
+    expect(() => GetProjectTodosArgsSchema.parse({})).toThrow();
   });
 });
 

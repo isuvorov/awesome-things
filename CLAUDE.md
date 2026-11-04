@@ -112,7 +112,7 @@ src/
 │   └── format.ts         # Human-readable daemon report
 ├── api/                  # Things3 operations (AppleScript)
 │   ├── todo-ops.ts       # Todo operations (create, get, list, complete, cancel, delete, update, search)
-│   ├── errors.ts         # NotFoundError / isNotFound — HTTP answers 404
+│   ├── errors.ts         # NotFoundError → HTTP 404, AmbiguousError → HTTP 409
 │   ├── when.ts           # Things' "When" field (schedule) — not the deadline
 │   ├── url-scheme.ts     # things:/// fallback — evening, reminders, checklists
 │   ├── batch.ts          # runBatch — one todo op applied to an array of ids
@@ -238,6 +238,9 @@ src/
 - **Completing is not deleting.** `complete_todo` → Logbook as *done*; `cancel_todo` → Logbook as
   *cancelled*; `delete_todo` → Trash (`move ... to list "Trash"`). Never use complete to get rid of
   a todo — the Logbook then claims work nobody did
+- **Never address a project by `project "X"` when reading it** — AppleScript matches names
+  case-insensitively and takes the first hit. `resolveProjectId()` (exact case → any case → id)
+  turns the name into an id; two candidates are an `AmbiguousError` listing them
 - Every todo operation takes `ids: string[]`; `runBatch` (`src/api/batch.ts`) runs them sequentially
   and reports per-id failures instead of aborting
 - Evening, reminder times (`when` with `@HH:MM`) and checklists only exist in the Things URL scheme

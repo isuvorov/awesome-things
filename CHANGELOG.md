@@ -1,3 +1,15 @@
+# [1.8.0](https://github.com/isuvorov/awesome-things/compare/v1.7.0...v1.8.0) (2026-11-04)
+
+
+### Bug Fixes
+
+* **projects:** return project tags, find get_project_todos by exact name or id, and refuse blank searches ([dadfd05](https://github.com/isuvorov/awesome-things/commit/dadfd05d50ae2f2f46e7c505ac19fbe8247ea02f))
+
+
+### Features
+
+* **todos:** get one todo by id with all its fields and share it as a /todo/{id} page ([408b74b](https://github.com/isuvorov/awesome-things/commit/408b74b291c3858c4429b814963654f1a93d3cf2))
+
 # [1.7.0](https://github.com/isuvorov/awesome-things/compare/v1.6.2...v1.7.0) (2026-10-06)
 
 

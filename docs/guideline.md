@@ -45,7 +45,7 @@ src/
 │   ├── url-scheme.ts     # things:/// fallback — token, reminders, checklist items
 │   ├── batch.ts          # runBatch — one todo op applied to an array of ids
 │   ├── project-ops.ts    # createProject, listProjects, getProjectTodos, updateProject, deleteProject
-│   ├── area-ops.ts       # getAreaTodos — todos sitting directly in an area
+│   ├── area-ops.ts       # createArea, getAreaTodos — todos sitting directly in an area
 │   ├── list-ops.ts       # listTags, listAreas
 │   └── move-ops.ts       # moveTodo, moveTodoToProject, moveTodoToArea, moveProjectToArea, removeTodoFromProject, removeProjectFromArea
 ├── daemon/               # Background launchd agent (macOS)
@@ -77,7 +77,7 @@ src/
     ├── applescript.ts    # AppleScript execution + escaping
     ├── auth.ts           # Token generation, Bearer / path-token checks, safeNextPath
     ├── create-server.ts  # Bun.serve / node:http wrapper with error handling
-    ├── mcp-server.ts     # MCP tool registration (22 tools)
+    ├── mcp-server.ts     # MCP tool registration (23 tools)
     ├── openapi.ts        # OpenAPI spec, Swagger UI, home page
     └── tunnel.ts         # Tunnel providers: localtunnel, ngrok, frp
 tests/
@@ -161,7 +161,7 @@ bun run release            # Build + test + semantic-release + npm publish
 - `capitalize(s)` — capitalizes first letter
 
 ### Operations (`api/*.ts`)
-22 operations grouped by domain. Each takes typed args validated by a Zod schema.
+23 operations grouped by domain. Each takes typed args validated by a Zod schema.
 
 **Completing is not deleting.** `complete_todo` moves a todo to the Logbook as *done* —
 using it to get rid of a mistake fills the Logbook with work nobody did. Three separate verbs:
@@ -218,6 +218,10 @@ Things3 has no `every to do of area "X"` — it fails with -1728, exactly like
 `every project of area "X"`. `getAreaTodos` scans the built-in lists, filters by area name and
 de-duplicates by id (Anytime overlaps Today and Upcoming). Todos inside a project have no area of
 their own, so they are not returned — use `listProjects({ area })` + `getProjectTodos`.
+
+`createArea({ name })` is `make new area`, but first looks for an area with exactly that name
+(`considering case`) and returns it instead. Things3 itself allows two areas with one name, yet
+every other operation addresses an area by name, so a twin would be unreachable.
 
 ### URL scheme (`api/url-scheme.ts`)
 Three things the Things3 AppleScript dictionary does not expose at all: "This Evening", reminder

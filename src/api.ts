@@ -1,4 +1,4 @@
-export { getAreaTodos } from './api/area-ops.js';
+export { createArea, getAreaTodos } from './api/area-ops.js';
 export { isNotFound, NotFoundError } from './api/errors.js';
 export { listAreas, listTags } from './api/list-ops.js';
 export {
@@ -31,6 +31,7 @@ export type {
   BatchItemResult,
   CancelTodoArgs,
   CompleteTodoArgs,
+  CreateAreaArgs,
   CreateProjectArgs,
   CreateTodoArgs,
   DeleteProjectArgs,

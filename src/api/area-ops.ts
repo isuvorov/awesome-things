@@ -1,5 +1,11 @@
 import { filterTodosByStatus, parseTodoLines } from '../tools/parsers.js';
-import type { GetAreaTodosArgs, GetAreaTodosResult, TodoItem } from '../types.js';
+import type {
+  ActionResult,
+  CreateAreaArgs,
+  GetAreaTodosArgs,
+  GetAreaTodosResult,
+  TodoItem,
+} from '../types.js';
 import { execute, quoteString, tellThings } from '../utils/applescript.js';
 
 /**
@@ -102,4 +108,28 @@ return outputStr`);
   }
 
   return { area: args.area_name, todos: filterTodosByStatus(todos, args.status) };
+}
+
+/**
+ * Creates an area — unless one with exactly this name already exists, in which case that one
+ * is returned. Things3 allows two areas with one name, but everything else here addresses an
+ * area by name, so a twin would be unreachable. `considering case`: «Work» is not «work».
+ */
+export async function createArea(args: CreateAreaArgs): Promise<ActionResult> {
+  const name = args.name.trim();
+  const script = tellThings(`
+set wanted to ${quoteString(name)}
+considering case
+  repeat with a in areas
+    if name of a is wanted then return "exists" & tab & (id of a)
+  end repeat
+end considering
+set newArea to make new area with properties {name:wanted}
+return "created" & tab & (id of newArea)`);
+
+  const [state, id] = (await execute(script)).split('\t');
+  return {
+    message: state === 'exists' ? `Area already exists: ${name}` : `Created area: ${name}`,
+    id,
+  };
 }

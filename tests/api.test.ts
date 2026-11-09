@@ -55,7 +55,7 @@ mock.module('../src/utils/applescript.js', () => ({
   },
 }));
 
-import { getAreaTodos } from '../src/api/area-ops.js';
+import { createArea, getAreaTodos } from '../src/api/area-ops.js';
 import { listAreas, listTags } from '../src/api/list-ops.js';
 import {
   moveProjectToArea,
@@ -749,6 +749,29 @@ describe('listAreas', () => {
     await listAreas();
     expect(executeCalls[0]).toContain('name of areas as string');
     expect(executeCalls[0]).toContain('text item delimiters to tab');
+  });
+});
+
+describe('createArea', () => {
+  test('creates the area and returns its id', async () => {
+    resetExecute('created\tAREA-ID');
+    const result = await createArea({ name: 'Singularity' });
+    expect(result).toEqual({ message: 'Created area: Singularity', id: 'AREA-ID' });
+    expect(executeCalls[0]).toContain('set wanted to "Singularity"');
+    expect(executeCalls[0]).toContain('make new area with properties {name:wanted}');
+  });
+
+  test('returns an area with exactly this name instead of making a twin', async () => {
+    resetExecute('exists\tOLD-ID');
+    const result = await createArea({ name: 'Work' });
+    expect(result).toEqual({ message: 'Area already exists: Work', id: 'OLD-ID' });
+    expect(executeCalls[0]).toContain('considering case');
+  });
+
+  test('quotes the name', async () => {
+    resetExecute('created\tX');
+    await createArea({ name: 'A "quoted" area' });
+    expect(executeCalls[0]).toContain('set wanted to "A \\"quoted\\" area"');
   });
 });
 

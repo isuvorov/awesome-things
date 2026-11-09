@@ -1,5 +1,5 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { getAreaTodos } from '../api/area-ops.js';
+import { createArea, getAreaTodos } from '../api/area-ops.js';
 import { listAreas, listTags } from '../api/list-ops.js';
 import {
   moveProjectToArea,
@@ -31,6 +31,7 @@ import { errorMessage } from '../server/errors.js';
 import {
   CancelTodoArgsBaseSchema,
   CompleteTodoArgsBaseSchema,
+  CreateAreaArgsSchema,
   CreateProjectArgsSchema,
   CreateTodoArgsSchema,
   DeleteProjectArgsBaseSchema,
@@ -202,6 +203,12 @@ export function createMcpServer(): McpServer {
     'List all available areas in Things3',
     ListAreasArgsSchema.shape,
     mcpHandler(listAreas),
+  );
+  server.tool(
+    'create_area',
+    'Create an area in Things3. An area with exactly this name is returned instead of a twin',
+    CreateAreaArgsSchema.shape,
+    mcpHandler(createArea),
   );
 
   // ── Move Operations ─────────────────────────────────────────────

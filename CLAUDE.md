@@ -117,7 +117,7 @@ src/
 │   ├── url-scheme.ts     # things:/// fallback — evening, reminders, checklists
 │   ├── batch.ts          # runBatch — one todo op applied to an array of ids
 │   ├── project-ops.ts    # Project operations (create, list, get todos, delete)
-│   ├── area-ops.ts       # Todos sitting directly in an area
+│   ├── area-ops.ts       # createArea, todos sitting directly in an area
 │   ├── list-ops.ts       # Tags and areas listing
 │   └── move-ops.ts       # Move and remove operations
 ├── server/               # HTTP server internals
@@ -232,7 +232,7 @@ src/
 - `test:unit` globs `tests/[!s]*.test.ts` — a test file starting with `s` silently never runs
 
 ## Key Architecture
-- **22 tools** for managing Things3: todos, projects, tags, areas, move/remove/delete
+- **23 tools** for managing Things3: todos, projects, tags, areas, move/remove/delete
 - **AppleScript** — only way to programmatically control Things3 on macOS
 - **4 interfaces**: JS/TS API (`api.ts`), MCP server (`mcp.ts`), CLI (`cli.ts`), HTTP API (`server.ts`)
 - Todos/projects are addressed by **id or name**; todo ops also take `ids` for batches

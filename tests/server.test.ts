@@ -114,6 +114,10 @@ mock.module('../src/api/project-ops.js', () => ({
 }));
 
 mock.module('../src/api/area-ops.js', () => ({
+  createArea: mock(async (args: { name: string }) => ({
+    message: `Created area: ${args.name}`,
+    id: 'AREA-ID',
+  })),
   getAreaTodos: mock(async (args: { area_name: string }) => {
     if (!returnData) return { area: args.area_name, todos: [] };
     return {
@@ -779,6 +783,21 @@ describe('GET /api/areas', () => {
     const data = await res.json();
     expect(data.ok).toBe(true);
     expect(data.areas).toEqual(['Work', 'Personal']);
+  });
+});
+
+describe('POST /api/areas', () => {
+  test('creates an area and returns its id', async () => {
+    const res = await fetch(`${baseUrl}/api/areas`, {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Singularity' }),
+    });
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.ok).toBe(true);
+    expect(data.message).toBe('Created area: Singularity');
+    expect(data.id).toBe('AREA-ID');
   });
 });
 

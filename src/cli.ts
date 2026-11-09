@@ -2,7 +2,7 @@
 import './settings/autoload.js';
 import yargs, { type Argv } from 'yargs';
 import { hideBin } from 'yargs/helpers';
-import { getAreaTodos } from './api/area-ops.js';
+import { createArea, getAreaTodos } from './api/area-ops.js';
 import { listAreas, listTags } from './api/list-ops.js';
 import {
   moveProjectToArea,
@@ -700,7 +700,13 @@ yargs(hideBin(process.argv))
   .command(
     'areas',
     'List all areas',
-    () => {},
+    (y) =>
+      y.command(
+        'add <name>',
+        'Create an area (an existing one with this exact name is returned instead)',
+        (y) => y.positional('name', { type: 'string', demandOption: true, describe: 'Area name' }),
+        (argv) => run(() => createArea({ name: argv.name! }), fmt.formatAction),
+      ),
     () => run(() => listAreas(), fmt.formatAreas),
   )
   .command(

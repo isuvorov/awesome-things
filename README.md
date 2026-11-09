@@ -21,7 +21,7 @@
 **📦 JS/TS API** — use Things3 as a fully-typed library <br/>
 **🔗 Built-in tunnels** — expose your Mac via localtunnel, ngrok or frp <br/>
 **🔐 Bearer-token auth** — protect remote access out of the box <br/>
-**✅ 22 operations** — todos, projects, tags, areas, move, delete & batch <br/>
+**✅ 23 operations** — todos, projects, tags, areas, move, delete & batch <br/>
 **🍏 AppleScript-native** — talks to Things3 directly, validated with Zod <br/>
 
 ---
@@ -183,6 +183,7 @@ things project rm "Q1 Planning"          # project + its todos → Trash
 # Tags & areas
 things tags
 things areas
+things areas add Singularity             # an existing area with this exact name is reused
 things area Work                         # todos sitting directly in an area (no project)
 
 # Move (destination: inbox | today | evening | anytime | upcoming | someday)
@@ -232,6 +233,7 @@ The server also serves a home page at `/`, **a shareable page for every todo at 
 | `GET` | `/api/projects/:name/todos?id=...` | Project todos — by name or id; a shared name is a 409 |
 | `GET` | `/api/tags` | All tags |
 | `GET` | `/api/areas` | All areas |
+| `POST` | `/api/areas` | Create area (`{ name }`; an exact-name match is returned) |
 | `GET` | `/api/areas/:name/todos` | Todos directly in an area |
 | `POST` | `/api/move/todo` | Move todo to list |
 | `POST` | `/api/move/todo-to-project` | Move todo to project |
@@ -416,7 +418,7 @@ AppleScript is the only programmatic interface to Things3 on macOS. Each operati
 | `src/mcp.ts` | MCP server (stdio transport) |
 | `src/server.ts` | HTTP REST API + MCP-over-HTTP (`Bun.serve`) |
 | `src/cli.ts` | CLI (yargs) — `things` / `thi` / `awesome-things` |
-| `src/api/*.ts` | The 22 todo / project / area / list / move operations |
+| `src/api/*.ts` | The 23 todo / project / area / list / move operations |
 | `src/utils/applescript.ts` | `execute`, `tellThings`, `quoteString` helpers |
 | `src/utils/tunnel.ts` | localtunnel / ngrok / frp providers |
 | `src/utils/auth.ts` | Bearer-token resolution & checks |
@@ -509,6 +511,7 @@ Every todo function accepts `ids: string[]` instead of `id` to run as a batch.
 - `getAreaTodos({ area_name, status? })` — todos sitting directly in an area
 - `listTags()` — list all tags
 - `listAreas()` — list all areas
+- `createArea({ name })` — create an area, or return the one with exactly this name
 - `moveTodo({ todo_name?, id?, ids?, destination })` — move todo to a list
 - `moveTodoToProject({ todo_name?, id?, ids?, project_name })` — move todo to a project
 - `moveTodoToArea({ todo_name?, id?, ids?, area_name })` — move todo to an area

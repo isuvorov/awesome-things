@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   CancelTodoArgsSchema,
   CompleteTodoArgsSchema,
+  CreateAreaArgsSchema,
   CreateProjectArgsSchema,
   CreateTodoArgsSchema,
   DeleteProjectArgsSchema,
@@ -324,9 +325,13 @@ describe('CreateProjectArgsSchema todos', () => {
 });
 
 describe('toolSchemas', () => {
-  test('has all 22 tool schemas', () => {
+  test('has all 23 tool schemas', () => {
     const tools = Object.keys(toolSchemas);
-    expect(tools).toHaveLength(22);
+    expect(tools).toHaveLength(23);
+  });
+
+  test('create_area requires a name', () => {
+    expect(toolSchemas.create_area.required).toEqual(['name']);
   });
 
   test('get_todo requires an id', () => {
@@ -414,5 +419,16 @@ describe('case-insensitive enums', () => {
 
   test('still rejects a value that is not in the enum', () => {
     expect(() => ListTodosArgsSchema.parse({ list: 'Tomorrow' })).toThrow();
+  });
+});
+
+describe('CreateAreaArgsSchema', () => {
+  test('takes a name and trims it', () => {
+    expect(CreateAreaArgsSchema.parse({ name: '  Singularity ' })).toEqual({ name: 'Singularity' });
+  });
+
+  test('refuses a missing or blank name', () => {
+    expect(() => CreateAreaArgsSchema.parse({})).toThrow();
+    expect(() => CreateAreaArgsSchema.parse({ name: '   ' })).toThrow();
   });
 });

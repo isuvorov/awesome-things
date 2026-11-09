@@ -319,6 +319,11 @@ export type ListTagsArgs = z.infer<typeof ListTagsArgsSchema>;
 export const ListAreasArgsSchema = z.object({});
 export type ListAreasArgs = z.infer<typeof ListAreasArgsSchema>;
 
+export const CreateAreaArgsSchema = z.object({
+  name: z.string().trim().min(1).describe('Name of the area'),
+});
+export type CreateAreaArgs = z.infer<typeof CreateAreaArgsSchema>;
+
 // ── Move Types ──────────────────────────────────────────────────
 
 export const MoveTodoArgsBaseSchema = z.object({
@@ -637,6 +642,13 @@ export const toolSchemas = {
     type: 'object' as const,
     properties: {},
     required: [] as string[],
+  },
+  create_area: {
+    type: 'object' as const,
+    properties: {
+      name: { type: 'string', pattern: '\\S', description: 'Name of the area' },
+    },
+    required: ['name'],
   },
   move_todo: {
     type: 'object' as const,

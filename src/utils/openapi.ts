@@ -106,6 +106,13 @@ const routes: RouteMapping[] = [
     tag: 'Areas',
   },
   {
+    method: 'post',
+    path: '/api/areas',
+    toolKey: 'create_area',
+    summary: 'Create an area',
+    tag: 'Areas',
+  },
+  {
     method: 'get',
     path: '/api/areas/{name}/todos',
     toolKey: 'get_area_todos',

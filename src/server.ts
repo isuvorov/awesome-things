@@ -3,6 +3,7 @@ import './settings/autoload.js';
 import {
   cancelTodo,
   completeTodo,
+  createArea,
   createProject,
   createTodo,
   deleteProject,
@@ -272,6 +273,10 @@ async function handleRoute(
 
   if (pathname === '/api/areas' && method === 'GET') {
     return handle(() => listAreas());
+  }
+
+  if (pathname === '/api/areas' && method === 'POST') {
+    return handle(async () => createArea((await body(req)) as any));
   }
 
   const areaTodosMatch = pathname.match(/^\/api\/areas\/(.+)\/todos$/);

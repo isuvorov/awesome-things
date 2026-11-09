@@ -1,5 +1,5 @@
 import { appName, appVersion } from '../config.js';
-import { escapeHtml } from '../server/todo-page.js';
+import { escapeHtml } from '../server/markdown.js';
 import { toolSchemas } from '../types.js';
 import { safeNextPath } from './auth.js';
 

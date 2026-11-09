@@ -4,34 +4,12 @@ import { appName } from '../config.js';
 import type { TodoDetails } from '../types.js';
 import { errorMessage } from './errors.js';
 import { logError } from './logger.js';
+import { escapeHtml, renderMarkdown } from './markdown.js';
+
+export { escapeHtml };
 
 /** The web page of one todo. `/todo/<id>` is the link to share — see todoPageResponse. */
 export const TODO_PAGE_PREFIX = '/todo/';
-
-/** Everything Things3 hands back is user text — none of it may reach the page raw. */
-export function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-const URL_RE = /https?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)\]]/g;
-
-/** Notes are plain text; links in them become clickable, everything else is escaped. */
-export function renderNotes(notes: string): string {
-  let html = '';
-  let last = 0;
-  for (const match of notes.matchAll(URL_RE)) {
-    const url = match[0];
-    html += escapeHtml(notes.slice(last, match.index));
-    html += `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a>`;
-    last = match.index + url.length;
-  }
-  return html + escapeHtml(notes.slice(last));
-}
 
 /** The id from `/todo/<id>`, or null when the path is something else. */
 export function parseTodoPagePath(pathname: string): string | null {
@@ -63,7 +41,20 @@ const STYLE = `
     .meta { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin-top: 20px; font-size: 14px; }
     .meta dt { color: #86868b; }
     .tag { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 10px; background: #f0f0f5; margin: 0 4px 4px 0; }
-    .notes { margin-top: 20px; padding-top: 20px; border-top: 1px solid #e8e8ed; font-size: 15px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+    .notes { margin-top: 20px; padding-top: 20px; border-top: 1px solid #e8e8ed; font-size: 15px; line-height: 1.55; word-break: break-word; }
+    .notes > * + * { margin-top: 10px; }
+    .notes h2, .notes h3, .notes h4, .notes h5, .notes h6 { font-weight: 700; line-height: 1.3; margin-top: 18px; }
+    .notes h2 { font-size: 20px; } .notes h3 { font-size: 17px; } .notes h4, .notes h5, .notes h6 { font-size: 15px; }
+    .notes ul, .notes ol { padding-left: 24px; }
+    .notes li > ul, .notes li > ol, .notes li > p { margin-top: 4px; }
+    .notes li.task { list-style: none; margin-left: -20px; }
+    .notes li.task input { margin-right: 4px; vertical-align: -1px; }
+    .notes code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; background: #f0f0f5; padding: 1px 5px; border-radius: 5px; }
+    .notes pre { background: #f0f0f5; padding: 12px 14px; border-radius: 9px; overflow-x: auto; }
+    .notes pre code { background: none; padding: 0; white-space: pre; }
+    .notes blockquote { border-left: 3px solid #d2d2d7; padding-left: 12px; color: #6e6e73; }
+    .notes hr { border: none; border-top: 1px solid #e8e8ed; }
+    .notes mark { background: #fff3a3; padding: 0 2px; border-radius: 3px; }
     .actions { margin-top: 24px; }
     .button { display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 600; color: #fff; background: #0071e3; border-radius: 9px; }
     .button:hover { background: #0077ed; text-decoration: none; }
@@ -134,7 +125,7 @@ export function getTodoPage(todo: TodoDetails): string {
         ? `<dl class="meta">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`
         : ''
     }
-    ${todo.notes ? `<div class="notes">${renderNotes(todo.notes)}</div>` : ''}
+    ${todo.notes ? `<div class="notes">${renderMarkdown(todo.notes)}</div>` : ''}
     <div class="actions">
       <a class="button" href="things:///show?id=${encodeURIComponent(todo.id)}">Open in Things</a>
     </div>

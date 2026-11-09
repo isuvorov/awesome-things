@@ -62,7 +62,8 @@ src/
 │   ├── http.ts           # json, handle, body, ClientError, CORS headers
 │   ├── logger.ts         # Request box, ANSI colors, logError
 │   ├── mcp-http.ts       # MCP-over-HTTP: stateless transport per request
-│   ├── todo-page.ts      # /todo/{id} page: getTodoPage, todoPageResponse, escapeHtml, renderNotes
+│   ├── markdown.ts       # escapeHtml, isSafeUrl, renderInline, renderMarkdown — notes as HTML
+│   ├── todo-page.ts      # /todo/{id} page: getTodoPage, todoPageResponse
 │   └── port.ts           # probePort, APP_ID, MAX_PORT_ATTEMPTS
 ├── settings/             # User config file
 │   ├── schema.ts         # userConfigSchema, toEnvironment, configJsonSchema
@@ -185,6 +186,15 @@ not allowed inside one. An unknown id is `-1728`, caught in the script and throw
 (`things:///show?id=…`), `Cache-Control: no-store` and `noindex`. A browser without the cookie gets
 `303 → /auth?next=/todo/{id}` and lands back on the todo after signing in. The home page links every
 todo there.
+
+Notes are rendered as markdown by `src/server/markdown.ts` — the subset Things3 itself shows:
+headings (one level below the todo title), `**bold**`, `*italic*`, `~~strike~~`, `==highlight==`,
+`` `code` `` and fenced blocks, lists (nested, ordered, `- [ ]` checklists), quotes, rules, and
+links — `[text](url)`, `<url>` and bare `scheme://…`. No dependency on purpose: every piece of text
+is escaped before it is wrapped in a tag, so raw HTML in a note shows up as text. A link is
+clickable for any scheme except `javascript:`, `vbscript:`, `data:`, `file:` and `blob:` — app links
+like `obsidian://` and `things:///` must work. Only `http(s)` opens in a new tab: an app link there
+would leave an empty tab behind. Lines inside a paragraph keep their breaks.
 
 ### Projects by name (`resolveProjectId`)
 `project "X"` in AppleScript compares names case-insensitively and takes the first hit: «РАЗОБРАТЬ»

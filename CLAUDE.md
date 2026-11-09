@@ -126,7 +126,8 @@ src/
 │   ├── http.ts           # json / handle / body helpers + CORS headers
 │   ├── logger.ts         # Request box, colors, logError
 │   ├── mcp-http.ts       # MCP-over-HTTP: stateless transport per request
-│   ├── todo-page.ts      # /todo/{id} — shareable web page of one todo, escapeHtml
+│   ├── markdown.ts       # escapeHtml + notes markdown → HTML (no dependency)
+│   ├── todo-page.ts      # /todo/{id} — shareable web page of one todo
 │   └── port.ts           # Port probing
 ├── settings/             # ~/.config/awesome-things/config.json → process.env
 │   ├── schema.ts         # zod schema, env mapping, JSON Schema generator
@@ -146,6 +147,9 @@ src/
   answers `303` to `/auth?next=/todo/{id}`, never a JSON 401: whoever opens it is a browser
 - **Everything from Things3 goes through `escapeHtml()`** before it reaches a page, and every
   `next` through `safeNextPath()` — `//host` starts with a slash too and is an open redirect
+- **Notes are markdown, rendered by `renderMarkdown()`** — never feed them to a markdown library
+  that passes raw HTML through. Links are clickable for any scheme but the `UNSAFE_SCHEMES` in
+  `markdown.ts` (`obsidian://`, `things:///` must work), and only `http(s)` gets `target="_blank"`
 
 ## Daemon Rules (`awesome-things daemon`)
 - **`daemon` with no subcommand is `daemon up`** — `planUp()` in `ops.ts` decides: no plist →

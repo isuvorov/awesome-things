@@ -1,3 +1,11 @@
+# [1.9.0](https://github.com/isuvorov/awesome-things/compare/v1.8.0...v1.9.0) (2026-11-14)
+
+
+### Features
+
+* **areas:** create an area with create_area, reusing one with the exact same name ([7af2b3b](https://github.com/isuvorov/awesome-things/commit/7af2b3b2a1cab5811c9e40bcfc0464abd54e2374))
+* **web:** render todo notes as markdown with clickable app links like obsidian:// ([bce23f8](https://github.com/isuvorov/awesome-things/commit/bce23f8c719455b3521626331570c309d9439e7a))
+
 # [1.8.0](https://github.com/isuvorov/awesome-things/compare/v1.7.0...v1.8.0) (2026-11-04)
 
 
